@@ -3,19 +3,35 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
     <title>Minecraft Environment</title>
     <style>
         body { margin: 0; overflow: hidden; }
         canvas { display: block; }
         #joystick { position: absolute; left: 20px; bottom: 20px; width: 150px; height: 150px; border-radius: 50%; background: rgba(200, 200, 200, 0.5); touch-action: none; }
-        #place-button { position: absolute; right: 100px; bottom: 20px; padding: 10px; background: green; color: white; border: none; }
-        #dig-button { position: absolute; right: 20px; bottom: 20px; padding: 10px; background: red; color: white; border: none; }
+        #knob { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 80px; height: 80px; background: rgba(100, 100, 100, 0.8); border-radius: 50%; }
+        #place-button { position: absolute; right: 100px; bottom: 100px; padding: 10px; background: green; color: white; border: none; }
+        #dig-button { position: absolute; right: 20px; bottom: 100px; padding: 10px; background: red; color: white; border: none; }
+        #jump-button { position: absolute; right: 60px; bottom: 20px; padding: 10px; background: blue; color: white; border: none; }
+        #block-select { position: absolute; right: 20px; bottom: 180px; padding: 10px; }
     </style>
 </head>
 <body>
-    <div id="joystick"></div>
+    <div id="joystick">
+        <div id="knob"></div>
+    </div>
     <button id="place-button">Place</button>
     <button id="dig-button">Dig</button>
+    <button id="jump-button">Jump</button>
+    <select id="block-select">
+        <option value="1">Concrete</option>
+        <option value="2" selected>Metal</option>
+    </select>
     <script type="module" src="main.js"></script>
+    <script>
+        if (screen.orientation) {
+            screen.orientation.lock('landscape').catch(() => {});
+        }
+    </script>
 </body>
 </html>
