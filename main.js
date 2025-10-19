@@ -1,4 +1,4 @@
-// main.js
+// File: main.js
 import { createTerrain } from './Terrain.js';
 import { createSkydome } from './Skydome.js';
 import { setupLighting } from './Lighting.js';
@@ -22,20 +22,29 @@ class Game {
       document.getElementById('joystick-handle')
     );
 
-    // Mechzilla
+    // === Mechzilla (15×15 mast, segmented solid-beam chopsticks)
     this.tower = new MechzillaTower({
       height: 75,
-      baseSize: 6,
-      armLength: 24,
-      position: new THREE.Vector3(-10, 0, -8)
+      baseSize: 15,        // <- per your request
+      // You can tweak these later without touching Main:
+      // seg1:10, seg2:12, seg3:10, yaw1:THREE.MathUtils.degToRad(22), yaw3:THREE.MathUtils.degToRad(-18)
     });
     this.scene.add(this.tower.group);
 
-    // UI
+    // === UI wiring
     const btn = document.getElementById('toggle-arms');
     const slider = document.getElementById('arm-height');
     if (btn) btn.addEventListener('click', () => this.tower.toggle());
-    if (slider) slider.addEventListener('input', (e) => this.tower.setCatcherHeight(Number(e.target.value)));
+    if (slider) {
+      // keep slider within tower travel
+      const maxY = Math.max(20, this.tower.params.height - 5);
+      slider.min = '10';
+      slider.max = String(maxY);
+      if (!slider.value) slider.value = String(Math.round(maxY * 0.55));
+      slider.addEventListener('input', (e) => this.tower.setCatcherHeight(Number(e.target.value)));
+      // set starting carriage height from slider
+      this.tower.setCatcherHeight(Number(slider.value));
+    }
 
     this.clock = new THREE.Clock();
     this.animate = this.animate.bind(this);
@@ -47,10 +56,11 @@ class Game {
     const skydome = createSkydome(); this.scene.add(skydome);
     setupLighting(this.scene);
 
+    // camera start aimed at tower
     this.scene.add(this.cameraRig.camera);
-    this.cameraRig.camera.position.set(8, this.playerHeight, 18);
-    this.cameraRig.lon = -140; // face the tower initially
-    this.cameraRig.lat = -5;
+    this.cameraRig.camera.position.set(12, this.playerHeight + 2, 24);
+    this.cameraRig.lon = -135;
+    this.cameraRig.lat = -4;
   }
 
   handleControls(deltaTime) {
@@ -73,7 +83,7 @@ class Game {
       this.cameraRig.camera.position.add(move);
     }
 
-    // Ground stick
+    // Stick to ground
     const terrain = this.scene.getObjectByName("terrain");
     if (terrain) {
       const rayOrigin = new THREE.Vector3(this.cameraRig.camera.position.x, 50, this.cameraRig.camera.position.z);
@@ -97,11 +107,9 @@ class Game {
 }
 
 window.addEventListener('DOMContentLoaded', () => {
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js').catch(()=>{});
-  }
-  if (screen.orientation && screen.orientation.lock) {
-    screen.orientation.lock('landscape').catch(()=>{});
-  }
+  // SW + orientation (safe no-op fallbacks)
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
+  if (screen.orientation?.lock) screen.orientation.lock('landscape').catch(()=>{});
+
   new Game();
 });
