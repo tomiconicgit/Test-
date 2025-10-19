@@ -22,12 +22,12 @@ class Game {
       document.getElementById('joystick-handle')
     );
 
-    // === Fresh Mechzilla base (30x30) + four 4x4x40 corner beams
+    // === Fresh Mechzilla base (30x30) + four 4x4x60 corner beams
     this.tower = new MechzillaTower({
       baseSize: 30,
       baseThickness: 1,
       beamSize: 4,
-      beamHeight: 40
+      beamHeight: 60
     });
     this.tower.addTo(this.scene);
 
@@ -89,7 +89,6 @@ class Game {
     this.handleControls(dt);
     this.cameraRig.update();
 
-    // Nothing animated on the fresh tower yet, but keep hook for future
     if (this.tower && this.tower.update) this.tower.update(dt);
 
     this.renderer.render(this.scene, this.cameraRig.camera);
