@@ -1,20 +1,20 @@
 // src/VoxelWorld.js
-// Chunked voxel storage + face-only meshing for performance
 import * as THREE from 'three';
 import { BLOCK } from './Blocks.js';
 
 export class VoxelWorld {
   constructor({ chunkSize=16, heightMin=-30, heightMax=1000, worldSize=100 }) {
     this.chunkSize = chunkSize;
-    this.heightMin = heightMin; // -30
-    this.heightMax = heightMax; // 1000
-    this.worldSize = worldSize; // 100 (x,z)
-    this.chunks = new Map();    // "cx,cz" -> { meshGroup, voxels, needsRemesh }
+    this.heightMin = heightMin;
+    this.heightMax = heightMax;
+    this.worldSize = worldSize;
+    this.chunks = new Map();  // "cx,cz" -> { voxels, group, meshes, needsRemesh }
+    this.blockLib = null;
+    this.scene = null;
   }
 
   key(cx, cz) { return `${cx},${cz}`; }
 
-  // Convert world coords to chunk coords and local coords
   toChunk(x, y, z) {
     const cs = this.chunkSize;
     const cx = Math.floor(x / cs);
@@ -24,73 +24,68 @@ export class VoxelWorld {
     return { cx, cz, lx, ly: y - this.heightMin, lz };
   }
 
-  // Allocate chunk store
   _ensureChunk(cx, cz) {
     const k = this.key(cx, cz);
     if (!this.chunks.has(k)) {
-      const sizeY = this.heightMax - this.heightMin + 1; // big logical range, but we won't fill it
-      const voxels = new Map(); // sparse: "x,y,z" -> blockId
+      const voxels = new Map(); // sparse key: `${lx}|${y}|${lz}`
       const group = new THREE.Group();
       group.name = `chunk_${k}`;
+      // vertices are authored in world space, so keep identity
       group.matrixAutoUpdate = false;
       group.matrix.identity();
       this.chunks.set(k, { voxels, group, meshes: new Map(), needsRemesh: true });
+      if (this.scene) this.scene.add(group);
     }
     return this.chunks.get(k);
   }
 
-  // Initialize flat world: y<=0 filled with CONCRETE down to heightMin
+  // Flat world: fill y in [0..heightMin] (i.e., 0 down to -30) with concrete
   seedFlat(scene, blockLib, size=100) {
     this.scene = scene;
     this.blockLib = blockLib;
     const half = Math.floor(size/2);
 
-    // Fill voxel data only (not geometry); geometry is built when we remesh
     for (let x = -half; x < half; x++) {
       for (let z = -half; z < half; z++) {
         for (let y = 0; y >= this.heightMin; y--) {
-          this.setBlock(x,y,z, BLOCK.CONCRETE, false);
+          this.setBlock(x, y, z, BLOCK.CONCRETE, false);
         }
       }
     }
-    // Add chunk groups to scene
-    for (const [k, chunk] of this.chunks) {
-      this.scene.add(chunk.group);
+
+    // Ensure all chunk groups are attached
+    for (const [, chunk] of this.chunks) {
+      if (!chunk.group.parent) this.scene.add(chunk.group);
     }
-    // Build initial meshes
+
     this.remeshAll();
   }
 
-  // Get and set blocks (sparse storage)
   getBlock(x,y,z) {
     if (y < this.heightMin || y > this.heightMax) return BLOCK.AIR;
-    const { cx, cz, lx, ly, lz } = this.toChunk(x,y,z);
+    const { cx, cz, lx, lz } = this.toChunk(x,y,z);
     const chunk = this._ensureChunk(cx,cz);
     return chunk.voxels.get(`${lx}|${y}|${lz}`) ?? BLOCK.AIR;
   }
 
   setBlock(x,y,z, id, doRemesh=true) {
     if (y < this.heightMin || y > this.heightMax) return;
-    const { cx, cz, lx, ly, lz } = this.toChunk(x,y,z);
+    const { cx, cz, lx, lz } = this.toChunk(x,y,z);
     const chunk = this._ensureChunk(cx,cz);
     const key = `${lx}|${y}|${lz}`;
-    if (id === BLOCK.AIR) {
-      chunk.voxels.delete(key);
-    } else {
-      chunk.voxels.set(key, id);
-    }
+    if (id === BLOCK.AIR) chunk.voxels.delete(key);
+    else chunk.voxels.set(key, id);
     chunk.needsRemesh = true;
     if (doRemesh) this.remeshChunk(cx,cz);
   }
 
   remeshAll() {
-    for (const [k] of this.chunks) {
-      const [cx,cz] = k.split(',').map(Number);
+    for (const k of this.chunks.keys()) {
+      const [cx, cz] = k.split(',').map(Number);
       this.remeshChunk(cx,cz);
     }
   }
 
-  // Build face geometry per material for this chunk
   remeshChunk(cx,cz) {
     const chunk = this._ensureChunk(cx,cz);
     if (!chunk.needsRemesh) return;
@@ -103,33 +98,28 @@ export class VoxelWorld {
     }
     chunk.meshes.clear();
 
-    // Accumulators per blockId: positions, normals, uvs, uv2, indices
-    const accum = new Map();
+    const accum = new Map(); // id -> { p,n,u,u2,idx,count }
 
     const cs = this.chunkSize;
-    // Determine world xz bounds for this chunk within worldSize
     const half = Math.floor(this.worldSize/2);
     const x0 = cx*cs, x1 = x0 + cs;
     const z0 = cz*cs, z1 = z0 + cs;
 
-    // Skip chunks completely outside 100x100 area
-    if (x1 < -half || x0 >= half || z1 < -half || z0 >= half) return;
+    // Skip chunks fully outside the play area
+    if (x1 <= -half || x0 >= half || z1 <= -half || z0 >= half) return;
 
-    // Directions (px,nx,py,ny,pz,nz)
     const dirs = [
-      { n:[ 1, 0, 0], u:[0,0,1], v:[0,1,0] }, // +x
-      { n:[-1, 0, 0], u:[0,0,-1], v:[0,1,0] },// -x
-      { n:[ 0, 1, 0], u:[1,0,0], v:[0,0,1] }, // +y
-      { n:[ 0,-1, 0], u:[1,0,0], v:[0,0,-1] },// -y
-      { n:[ 0, 0, 1], u:[1,0,0], v:[0,1,0] }, // +z
-      { n:[ 0, 0,-1], u:[-1,0,0], v:[0,1,0] },// -z
+      { n:[ 1, 0, 0], u:[0,0, 1], v:[0,1, 0] },
+      { n:[-1, 0, 0], u:[0,0,-1], v:[0,1, 0] },
+      { n:[ 0, 1, 0], u:[1,0, 0], v:[0,0, 1] },
+      { n:[ 0,-1, 0], u:[1,0, 0], v:[0,0,-1] },
+      { n:[ 0, 0, 1], u:[1,0, 0], v:[0,1, 0] },
+      { n:[ 0, 0,-1], u:[-1,0,0], v:[0,1, 0] },
     ];
 
-    // Iterate visible voxels in this chunk's world bounds, but only over y where we have data
-    // For performance we only scan y in [heightMin..0] plus a small headroom
+    // Build surface faces only (AIR neighbors)
     for (let x = Math.max(x0, -half); x < Math.min(x1, half); x++) {
       for (let z = Math.max(z0, -half); z < Math.min(z1, half); z++) {
-        // Quick column presence check: if nothing at y=0 and -1, skip fast path (but digging can add)
         for (let y = 0; y >= this.heightMin; y--) {
           const id = this.getBlock(x,y,z);
           if (id === BLOCK.AIR) continue;
@@ -137,50 +127,37 @@ export class VoxelWorld {
           for (let f = 0; f < 6; f++) {
             const d = dirs[f];
             const nx = x + d.n[0], ny = y + d.n[1], nz = z + d.n[2];
-            const neighbor = this.getBlock(nx,ny,nz);
-            if (neighbor !== BLOCK.AIR) continue; // face hidden
+            if (this.getBlock(nx,ny,nz) !== BLOCK.AIR) continue;
 
-            // Create face quad
             let pack = accum.get(id);
-            if (!pack) {
-              pack = { p:[], n:[], u:[], u2:[], idx:[], count:0 };
-              accum.set(id, pack);
-            }
+            if (!pack) { pack = { p:[], n:[], u:[], u2:[], idx:[], count:0 }; accum.set(id, pack); }
             const { p,n,u,u2,idx } = pack;
 
-            // Build 4 corners of the face (centered cube, unit size)
-            // Face origin at (x,y,z), offset half along normal to sit on block boundary
             const ox = x + 0.5*d.n[0];
             const oy = y + 0.5*d.n[1];
             const oz = z + 0.5*d.n[2];
             const ux = d.u[0]*0.5, uy = d.u[1]*0.5, uz = d.u[2]*0.5;
             const vx = d.v[0]*0.5, vy = d.v[1]*0.5, vz = d.v[2]*0.5;
 
-            const i0 = pack.count;
+            const base = pack.count;
             const verts = [
               [ox - ux - vx, oy - uy - vy, oz - uz - vz],
               [ox + ux - vx, oy + uy - vy, oz + uz - vz],
               [ox + ux + vx, oy + uy + vy, oz + uz + vz],
               [ox - ux + vx, oy - uy + vy, oz - uz + vz],
             ];
-            for (const vtx of verts) {
-              p.push(vtx[0], vtx[1], vtx[2]);
-              n.push(d.n[0], d.n[1], d.n[2]);
-            }
-            // UVs
-            u.push(0,0, 1,0, 1,1, 0,1);
-            // uv2 duplicates for aoMap
-            u2.push(0,0, 1,0, 1,1, 0,1);
-            idx.push(i0+0, i0+1, i0+2, i0+0, i0+2, i0+3);
+            for (const vv of verts) { p.push(vv[0], vv[1], vv[2]); n.push(d.n[0], d.n[1], d.n[2]); }
+            u.push(0,0, 1,0, 1,1, 0,1); u2.push(0,0, 1,0, 1,1, 0,1);
+            idx.push(base+0, base+1, base+2, base+0, base+2, base+3);
             pack.count += 4;
           }
         }
       }
     }
 
-    // Build meshes for each blockId
+    // Emit one mesh per block id
     for (const [id, pack] of accum) {
-      if (pack.count === 0) continue;
+      if (!pack.count) continue;
       const g = new THREE.BufferGeometry();
       g.setAttribute('position', new THREE.Float32BufferAttribute(pack.p, 3));
       g.setAttribute('normal',   new THREE.Float32BufferAttribute(pack.n, 3));
@@ -190,7 +167,6 @@ export class VoxelWorld {
 
       const matGeom = this._materialFor(id);
       const mesh = new THREE.Mesh(g, matGeom.material);
-      mesh.castShadow = false;
       mesh.receiveShadow = true;
       mesh.frustumCulled = true;
 
@@ -200,9 +176,8 @@ export class VoxelWorld {
   }
 
   _materialFor(id) {
-    if (id === BLOCK.CONCRETE) return this.blockLib.materials[id];
-    if (id === BLOCK.METAL)     return this.blockLib.materials[id];
-    // fallback
-    return this.blockLib.materials[BLOCK.CONCRETE];
+    const mats = this.blockLib?.materials;
+    if (!mats) return { material: new THREE.MeshStandardMaterial({ color:0xff00ff }) };
+    return mats[id] || mats[BLOCK.CONCRETE];
   }
 }
