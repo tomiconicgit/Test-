@@ -4,8 +4,7 @@ import { World } from './world.js';
 import { Controls } from './controls.js';
 
 const scene = new THREE.Scene();
-// Fallback background so you see *something* even if sky fails to compile.
-scene.background = new THREE.Color(0x0d0f14);
+scene.background = new THREE.Color(0x1e2126);
 
 const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.1, 1000);
 
@@ -14,46 +13,48 @@ renderer.setSize(innerWidth, innerHeight);
 renderer.setPixelRatio(devicePixelRatio);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 0.85;
+renderer.toneMappingExposure = 1.8;              // bright on purpose
+renderer.setClearColor(0x1e2126);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.body.appendChild(renderer.domElement);
 
-// --- Sky + Sun light ---
+// Bright, simple lights (always visible)
+const hemi = new THREE.HemisphereLight(0xffffff, 0x202030, 1.2);
+scene.add(hemi);
+const amb  = new THREE.AmbientLight(0xffffff, 0.55);
+scene.add(amb);
+const dir  = new THREE.DirectionalLight(0xffffff, 1.1);
+dir.position.set(50, 80, 20);
+dir.castShadow = true;
+dir.shadow.mapSize.set(1024, 1024);
+scene.add(dir);
+
+// Sky (visual only, lights above already guarantee visibility)
 const sky = new Sky();
 sky.scale.setScalar(450000);
 scene.add(sky);
-
-const sunDir = new THREE.Vector3();
-const skyParams = { turbidity: 10, rayleigh: 3, mieCoefficient: 0.005, mieDirectionalG: 0.7, elevation: 25, azimuth: 180 };
-
-function updateSky() {
+const sun = new THREE.Vector3();
+(function updateSky(){
   const u = sky.material.uniforms;
-  u.turbidity.value = skyParams.turbidity;
-  u.rayleigh.value = skyParams.rayleigh;
-  u.mieCoefficient.value = skyParams.mieCoefficient;
-  u.mieDirectionalG.value = skyParams.mieDirectionalG;
+  u.turbidity.value = 10; u.rayleigh.value = 3; u.mieCoefficient.value = 0.005; u.mieDirectionalG.value = 0.7;
+  const elev = 30, az = 180;
+  sun.setFromSphericalCoords(1, THREE.MathUtils.degToRad(90 - elev), THREE.MathUtils.degToRad(az));
+  u.sunPosition.value.copy(sun);
+  dir.position.copy(sun).multiplyScalar(200);
+})();
 
-  const phi = THREE.MathUtils.degToRad(90 - skyParams.elevation);
-  const theta = THREE.MathUtils.degToRad(skyParams.azimuth);
-  sunDir.setFromSphericalCoords(1, phi, theta);
-
-  u.sunPosition.value.copy(sunDir);
-  dirLight.position.copy(sunDir).multiplyScalar(200);
-}
-const ambLight = new THREE.AmbientLight(0xffffff, 0.45);
-scene.add(ambLight);
-const dirLight = new THREE.DirectionalLight(0xffffff, 1.1);
-dirLight.castShadow = true;
-dirLight.shadow.mapSize.set(1024, 1024);
-scene.add(dirLight);
-updateSky();
-
-// --- World ---
+// World
 const world = new World(scene, 100, 100, -30, 30);
 world.generate();
 
-// --- Controls (spawns camera rig at 50,5,50 looking slightly down) ---
+// Debug helpers so you SEE something even if textures fail
+scene.add(new THREE.GridHelper(120, 60));
+const test = new THREE.Mesh(new THREE.BoxGeometry(2,2,2), new THREE.MeshBasicMaterial({ color: 0xffcc66 }));
+test.position.set(50, 2, 50);
+scene.add(test);
+
+// Controls
 const controls = new Controls(camera, world, scene);
 controls.pitch.rotation.x = -0.15;
 
@@ -66,10 +67,8 @@ addEventListener('resize', () => {
 
 // Loop
 const clock = new THREE.Clock();
-function animate() {
+(function animate(){
   requestAnimationFrame(animate);
-  const dt = clock.getDelta();
-  controls.update(dt);
+  controls.update(clock.getDelta());
   renderer.render(scene, camera);
-}
-animate();
+})();
