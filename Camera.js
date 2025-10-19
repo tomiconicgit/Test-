@@ -1,31 +1,76 @@
-onTouchStart(event) {
-    const touch = event.touches[0];
-    const t = touch.target;
+// Camera.js
+export class CameraRig {
+    constructor() {
+        this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        this.renderer = new THREE.WebGLRenderer({ antialias: true });
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
+        this.renderer.shadowMap.enabled = true;
+        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.body.appendChild(this.renderer.domElement);
 
-    // Ignore touches on UI controls (tower panel + joystick)
-    if (t.closest('#tower-ui') || t.closest('#joystick-container')) return;
+        this.touchStartX = 0;
+        this.touchStartY = 0;
+        this.lon = -90;
+        this.lat = 0;
+        this.phi = 0;
+        this.theta = 0;
 
-    event.preventDefault();
-    this.touchStartX = touch.clientX;
-    this.touchStartY = touch.clientY;
-}
+        this.bindEvents();
+    }
 
-onTouchMove(event) {
-    const touch = event.touches[0];
-    const t = touch.target;
+    bindEvents() {
+        window.addEventListener('resize', this.onWindowResize.bind(this), false);
+        document.addEventListener('touchstart', this.onTouchStart.bind(this), { passive: false });
+        document.addEventListener('touchmove', this.onTouchMove.bind(this), { passive: false });
+    }
 
-    // Ignore touches on UI controls (tower panel + joystick)
-    if (t.closest('#tower-ui') || t.closest('#joystick-container')) return;
+    onWindowResize() {
+        this.camera.aspect = window.innerWidth / window.innerHeight;
+        this.camera.updateProjectionMatrix();
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
+    }
 
-    event.preventDefault();
+    onTouchStart(event) {
+        const touch = event.touches[0];
+        const t = touch.target;
 
-    const touchX = touch.clientX;
-    const touchY = touch.clientY;
+        // Let UI (tower panel + joystick) handle their own touches.
+        if (t.closest('#tower-ui') || t.closest('#joystick-container')) return;
 
-    this.lon += (this.touchStartX - touchX) * 0.2;
-    this.lat += (this.touchStartY - touchY) * 0.2;
-    this.lat = Math.max(-85, Math.min(85, this.lat));
+        event.preventDefault();
+        this.touchStartX = touch.clientX;
+        this.touchStartY = touch.clientY;
+    }
 
-    this.touchStartX = touchX;
-    this.touchStartY = touchY;
+    onTouchMove(event) {
+        const touch = event.touches[0];
+        const t = touch.target;
+
+        // Let UI (tower panel + joystick) handle their own touches.
+        if (t.closest('#tower-ui') || t.closest('#joystick-container')) return;
+
+        event.preventDefault();
+
+        const touchX = touch.clientX;
+        const touchY = touch.clientY;
+
+        this.lon += (this.touchStartX - touchX) * 0.2;
+        this.lat += (this.touchStartY - touchY) * 0.2;
+        this.lat = Math.max(-85, Math.min(85, this.lat));
+
+        this.touchStartX = touchX;
+        this.touchStartY = touchY;
+    }
+
+    update() {
+        this.phi = THREE.MathUtils.degToRad(90 - this.lat);
+        this.theta = THREE.MathUtils.degToRad(this.lon);
+
+        const target = new THREE.Vector3();
+        target.x = 500 * Math.sin(this.phi) * Math.cos(this.theta);
+        target.y = 500 * Math.cos(this.phi);
+        target.z = 500 * Math.sin(this.phi) * Math.sin(this.theta);
+
+        this.camera.lookAt(this.camera.position.clone().add(target));
+    }
 }
