@@ -1,70 +1,81 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>3D World</title>
-
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no" />
-  <meta name="theme-color" content="#000000" />
+  <meta charset="utf-8" />
+  <title>Voxel World</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
+  <meta name="theme-color" content="#0a0a0a" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-
-  <link rel="manifest" href="manifest.json" />
-  <link rel="icon" href="icon.svg" type="image/svg+xml" />
-  <link rel="apple-touch-icon" href="icon.svg" />
-
   <style>
-    :root { --ui-bg: rgba(20,20,24,0.6); --ui-card: rgba(30,30,36,0.7); --ui-fg:#fff; }
-    html, body { height:100%; margin:0; background:#000; overflow:hidden; }
-    /* Canvas is pushed behind UI; JS also enforces this */
-    canvas { position:fixed; inset:0; z-index:0; display:block; }
-
-    /* Joystick (left) */
-    #joystick-container{
-      position:fixed; bottom:20px; left:20px; width:120px; height:120px; z-index:1000;
-      background:var(--ui-bg); border:1px solid rgba(255,255,255,0.15);
-      border-radius:50%; display:flex; justify-content:center; align-items:center;
-      backdrop-filter: blur(8px);
-      -webkit-touch-callout: none; -webkit-user-select: none; user-select: none;
-      touch-action: none;
+    html, body { margin:0; height:100%; overflow:hidden; background:#0b0c10; touch-action:none; }
+    canvas { display:block; }
+    /* HUD */
+    #hud { position:fixed; inset:0; pointer-events:none; }
+    .joystick {
+      position: absolute; left: 24px; bottom: 24px; width: 140px; height: 140px;
+      pointer-events: auto; border-radius: 50%; background: rgba(255,255,255,0.06); backdrop-filter: blur(8px);
     }
-    #joystick-handle{ width:60px; height:60px; background:rgba(255,255,255,0.45); border-radius:50%; }
-
-    /* Mechzilla controls (right) */
-    #tower-ui{
-      position:fixed; right:16px; bottom:20px; z-index:1001;
-      display:flex; flex-direction:column; gap:10px; padding:12px; width:min(260px, 46vw);
-      background:var(--ui-card); border:1px solid rgba(255,255,255,0.12); border-radius:14px;
-      color:var(--ui-fg); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,system-ui,sans-serif;
-      backdrop-filter: blur(10px);
-      touch-action: manipulation;  /* allow taps/drags without being blocked by doc handlers */
-      -webkit-touch-callout: none; -webkit-user-select: none; user-select: none;
+    .stick {
+      position:absolute; left:50%; top:50%; width:72px; height:72px; transform:translate(-50%,-50%);
+      border-radius:50%; background: rgba(255,255,255,0.18);
     }
-    #tower-ui button{
-      padding:12px 14px; border:none; border-radius:12px; font-weight:700; color:#fff;
-      background:#1f6feb; cursor:pointer;
+    .btn {
+      position:absolute; right:24px; bottom:24px; width:84px; height:84px; border-radius:18px;
+      background: rgba(255,255,255,0.08); backdrop-filter: blur(8px);
+      pointer-events:auto; display:flex; align-items:center; justify-content:center; font-family: system-ui, -apple-system, Inter, Arial, sans-serif; color:#fff; font-weight:600; user-select:none;
     }
-    #tower-ui label{ font-size:12px; display:flex; flex-direction:column; gap:6px; }
-    #tower-ui input[type="range"]{ width:100%; }
+    .btn.dig { right:124px; }
+    .btn:active { background: rgba(255,255,255,0.16); }
+    .block-select {
+      position:absolute; right:24px; bottom:128px; pointer-events:auto; display:flex; gap:10px;
+    }
+    .swatch {
+      width:40px; height:40px; border-radius:10px; border:2px solid rgba(255,255,255,0.2); box-shadow:0 0 0 2px transparent inset; cursor:pointer;
+    }
+    .swatch.active { box-shadow:0 0 0 2px #fff inset; }
+    .crosshair {
+      position:fixed; left:50%; top:50%; width:2px; height:2px; background:#fff; opacity:0.9; box-shadow:0 0 0 8px rgba(255,255,255,0.04);
+      transform:translate(-50%,-50%); border-radius:50%;
+    }
+    .fps {
+      position:fixed; left:12px; top:8px; color:#b8c0cc; font:12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; opacity:.8;
+      background:rgba(0,0,0,.35); padding:6px 8px; border-radius:8px; pointer-events:none;
+    }
   </style>
 </head>
 <body>
-  <!-- Left thumb joystick -->
-  <div id="joystick-container"><div id="joystick-handle"></div></div>
-
-  <!-- Mechzilla control card -->
-  <div id="tower-ui">
-    <button id="toggle-arms">Toggle Arms</button>
-    <label>
-      Catcher Height
-      <input id="arm-height" type="range" min="10" max="70" step="1" value="42">
-    </label>
+  <div id="hud">
+    <div class="joystick" id="joy"><div class="stick" id="stick"></div></div>
+    <div class="btn dig" id="btn-dig">DIG</div>
+    <div class="btn" id="btn-place">PLACE</div>
+    <div class="block-select" id="block-select"></div>
+    <div class="crosshair"></div>
+    <div class="fps" id="fps">…</div>
   </div>
 
-  <!-- Three.js -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <!-- Three.js from CDN -->
+  <script type="module">
+    import * as THREE from "https://unpkg.com/three@0.160.1/build/three.module.js";
+    window.THREE = THREE; // make global for modules that expect it
+  </script>
 
-  <!-- Game modules -->
-  <script type="module" src="main.js"></script>
+  <!-- Manifest-driven loader -->
+  <script type="module">
+    import { FILES } from './Main.js';
+    // Load all modules listed in Main.js, then boot Game.init()
+    const modules = {};
+    for (const path of FILES) {
+      modules[path] = await import(path);
+    }
+    // Boot
+    await modules['./src/Game.js'].Game.init({
+      modules,
+      assetsBase: './assets/',
+      worldSize: 100,     // 100 x 100
+      minY: -30,          // digging depth
+      maxSky: 1000        // sky height
+    });
+  </script>
 </body>
 </html>
