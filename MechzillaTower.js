@@ -1,4 +1,4 @@
-// MechzillaTower.js — fresh base + 4 detailed beams (now visible!)
+// MechzillaTower.js — fresh base + 4 detailed beams (visible, not washed out)
 // Base: 30x30 slab; Beams: 4x4 cross-section, 60 high with recessed panels
 
 export class MechzillaTower {
@@ -9,24 +9,23 @@ export class MechzillaTower {
     beamHeight = 60,
     position = new THREE.Vector3(0, 0, 0)
   } = {}) {
-    this.params = { baseSize, baseThickness, beamSize, beamHeight };
     this.group = new THREE.Group();
-    this.group.name = 'MechzillaTower';
     this.group.position.copy(position);
+    this.group.name = 'MechzillaTower';
 
-    // Use "painted steel": NOT a perfect metal so it receives diffuse light
+    // Painted steel — takes diffuse light (no env map needed)
     const shellMat = new THREE.MeshStandardMaterial({
-      color: 0xcfd6de,      // light steel
-      metalness: 0.25,      // ↓ from 1.0
-      roughness: 0.45       // ↑ so it doesn't look plastic
+      color: 0x9ca6b2,   // medium steel grey
+      metalness: 0.25,
+      roughness: 0.5
     });
     const panelMat = new THREE.MeshStandardMaterial({
-      color: 0xb7bec7,
+      color: 0x8d97a3,   // slightly darker recess
       metalness: 0.2,
-      roughness: 0.55
+      roughness: 0.6
     });
 
-    // Base slab
+    // --- Base slab (30 x 30)
     const base = new THREE.Mesh(
       new THREE.BoxGeometry(baseSize, baseThickness, baseSize),
       shellMat
@@ -36,10 +35,9 @@ export class MechzillaTower {
     base.name = 'towerBase';
     this.group.add(base);
 
-    // Detailed beams
+    // --- Four detailed beams (4x4x60) on corners
     const half = baseSize / 2 - beamSize / 2;
     const beamY = beamHeight / 2 + baseThickness;
-
     const beam = this._makeDetailedBeam(beamSize, beamHeight, shellMat, panelMat);
 
     const b1 = beam.clone(); b1.position.set(+half, beamY, +half); b1.name = 'cornerBeam_1';
@@ -52,15 +50,15 @@ export class MechzillaTower {
   _makeDetailedBeam(size, height, shellMat, panelMat) {
     const g = new THREE.Group();
 
+    // Outer column
     const shell = new THREE.Mesh(new THREE.BoxGeometry(size, height, size), shellMat);
-    shell.castShadow = true; shell.receiveShadow = true;
-    g.add(shell);
+    shell.castShadow = true; shell.receiveShadow = true; g.add(shell);
 
-    // Recessed panels (thin, slightly inset) on all four faces
+    // Recessed indent panels (all faces)
     const inset = Math.max(0.16, size * 0.12);
     const thickness = 0.05;
-    const fudge = 0.02;
-    const h = height - 0.8;
+    const fudge = 0.02; // avoid z-fighting
+    const h = height - 0.8;           // leave top/bottom rims
     const w = size - inset * 2;
 
     const px = new THREE.Mesh(new THREE.BoxGeometry(thickness, h, w), panelMat);
@@ -76,5 +74,5 @@ export class MechzillaTower {
   }
 
   addTo(scene) { scene.add(this.group); }
-  update() {}
+  update() {} // placeholder for future mechanics
 }
