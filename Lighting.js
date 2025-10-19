@@ -1,23 +1,27 @@
-// Lighting.js — balanced daylight with contrast (warm key, subtle fills)
+// Lighting.js — brighter, warm key + sky fill, still with contrast
 export function setupLighting(scene) {
-  scene.add(new THREE.AmbientLight(0xffffff, 0.12));
+  // Gentle ambient
+  scene.add(new THREE.AmbientLight(0xffffff, 0.18));
 
-  const hemi = new THREE.HemisphereLight(0xbad3ff, 0x161616, 0.32);
+  // Sky/ground fill (cool sky, dark ground)
+  const hemi = new THREE.HemisphereLight(0xbfd8ff, 0x141414, 0.55);
   scene.add(hemi);
 
-  const sun = new THREE.DirectionalLight(0xfff2e0, 1.0);
-  sun.position.set(70, 120, 50);
+  // Warm sun with shadows
+  const sun = new THREE.DirectionalLight(0xfff0dc, 1.25);
+  sun.position.set(80, 130, 60);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
   sun.shadow.camera.near = 0.5;
-  sun.shadow.camera.far = 500;
-  const s = 140;
+  sun.shadow.camera.far = 600;
+  const s = 160;
   sun.shadow.camera.left = -s; sun.shadow.camera.right = s;
   sun.shadow.camera.top  =  s; sun.shadow.camera.bottom = -s;
-  sun.shadow.bias = -0.0002;        // ↓ helps remove banding on the panels
+  sun.shadow.bias = -0.0002;
   scene.add(sun);
 
-  const fill = new THREE.DirectionalLight(0xffffff, 0.14);
-  fill.position.set(-80, 50, -90);
+  // Soft back/edge fill (no shadows)
+  const fill = new THREE.DirectionalLight(0xffffff, 0.2);
+  fill.position.set(-90, 50, -100);
   scene.add(fill);
 }
