@@ -10,39 +10,28 @@
   <style>
     html, body { margin:0; height:100%; overflow:hidden; background:#0b0c10; touch-action:none; }
     canvas { display:block; }
-    /* HUD */
     #hud { position:fixed; inset:0; pointer-events:none; }
-    .joystick {
-      position: absolute; left: 24px; bottom: 24px; width: 140px; height: 140px;
-      pointer-events: auto; border-radius: 50%; background: rgba(255,255,255,0.06); backdrop-filter: blur(8px);
-    }
-    .stick {
-      position:absolute; left:50%; top:50%; width:72px; height:72px; transform:translate(-50%,-50%);
-      border-radius:50%; background: rgba(255,255,255,0.18);
-    }
-    .btn {
-      position:absolute; right:24px; bottom:24px; width:84px; height:84px; border-radius:18px;
-      background: rgba(255,255,255,0.08); backdrop-filter: blur(8px);
-      pointer-events:auto; display:flex; align-items:center; justify-content:center; font-family: system-ui, -apple-system, Inter, Arial, sans-serif; color:#fff; font-weight:600; user-select:none;
-    }
+    .joystick { position:absolute; left:24px; bottom:24px; width:140px; height:140px; pointer-events:auto; border-radius:50%; background:rgba(255,255,255,0.06); backdrop-filter:blur(8px); }
+    .stick { position:absolute; left:50%; top:50%; width:72px; height:72px; transform:translate(-50%,-50%); border-radius:50%; background:rgba(255,255,255,0.18); }
+    .btn { position:absolute; right:24px; bottom:24px; width:84px; height:84px; border-radius:18px; background:rgba(255,255,255,0.08); backdrop-filter:blur(8px); pointer-events:auto; display:flex; align-items:center; justify-content:center; font-family:system-ui,-apple-system,Inter,Arial,sans-serif; color:#fff; font-weight:600; user-select:none; }
     .btn.dig { right:124px; }
-    .btn:active { background: rgba(255,255,255,0.16); }
-    .block-select {
-      position:absolute; right:24px; bottom:128px; pointer-events:auto; display:flex; gap:10px;
-    }
-    .swatch {
-      width:40px; height:40px; border-radius:10px; border:2px solid rgba(255,255,255,0.2); box-shadow:0 0 0 2px transparent inset; cursor:pointer;
-    }
+    .btn:active { background:rgba(255,255,255,0.16); }
+    .block-select { position:absolute; right:24px; bottom:128px; pointer-events:auto; display:flex; gap:10px; }
+    .swatch { width:40px; height:40px; border-radius:10px; border:2px solid rgba(255,255,255,0.2); box-shadow:0 0 0 2px transparent inset; cursor:pointer; }
     .swatch.active { box-shadow:0 0 0 2px #fff inset; }
-    .crosshair {
-      position:fixed; left:50%; top:50%; width:2px; height:2px; background:#fff; opacity:0.9; box-shadow:0 0 0 8px rgba(255,255,255,0.04);
-      transform:translate(-50%,-50%); border-radius:50%;
-    }
-    .fps {
-      position:fixed; left:12px; top:8px; color:#b8c0cc; font:12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; opacity:.8;
-      background:rgba(0,0,0,.35); padding:6px 8px; border-radius:8px; pointer-events:none;
-    }
+    .crosshair { position:fixed; left:50%; top:50%; width:2px; height:2px; background:#fff; opacity:.9; box-shadow:0 0 0 8px rgba(255,255,255,0.04); transform:translate(-50%,-50%); border-radius:50%; }
+    .fps { position:fixed; left:12px; top:8px; color:#b8c0cc; font:12px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace; opacity:.8; background:rgba(0,0,0,.35); padding:6px 8px; border-radius:8px; pointer-events:none; }
+    #err { position:fixed; left:8px; right:8px; bottom:8px; max-height:45%; overflow:auto; font:12px/1.4 ui-monospace,monospace; white-space:pre-wrap; color:#fff; background:#300; padding:8px; border-radius:8px; display:none; }
   </style>
+
+  <!-- Import map resolves "three" for all modules -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.1/build/three.module.js"
+    }
+  }
+  </script>
 </head>
 <body>
   <div id="hud">
@@ -53,28 +42,29 @@
     <div class="crosshair"></div>
     <div class="fps" id="fps">…</div>
   </div>
+  <div id="err"></div>
 
-  <!-- Three.js from CDN -->
-  <script type="module">
-    import * as THREE from "https://unpkg.com/three@0.160.1/build/three.module.js";
-    window.THREE = THREE; // make global for modules that expect it
+  <!-- Error trap (so failures are visible on-device) -->
+  <script>
+    (function(){
+      const box = document.getElementById('err');
+      const show = (msg) => { box.style.display='block'; box.textContent += msg + '\n'; };
+      window.addEventListener('error', e => show('[Error] ' + (e.message || e.error)));
+      window.addEventListener('unhandledrejection', e => show('[Promise] ' + (e.reason && (e.reason.stack || e.reason.message) || e)));
+    })();
   </script>
 
-  <!-- Manifest-driven loader -->
+  <!-- Boot -->
   <script type="module">
     import { FILES } from './Main.js';
-    // Load all modules listed in Main.js, then boot Game.init()
     const modules = {};
-    for (const path of FILES) {
-      modules[path] = await import(path);
-    }
-    // Boot
+    for (const path of FILES) modules[path] = await import(path);
     await modules['./src/Game.js'].Game.init({
       modules,
       assetsBase: './assets/',
-      worldSize: 100,     // 100 x 100
-      minY: -30,          // digging depth
-      maxSky: 1000        // sky height
+      worldSize: 100,
+      minY: -30,
+      maxSky: 1000
     });
   </script>
 </body>
