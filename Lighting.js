@@ -1,27 +1,34 @@
+// Lighting.js — brighter, balanced lighting for mobile
 export function setupLighting(scene) {
-    // Ambient light to softly illuminate the whole scene
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-    scene.add(ambientLight);
+  // 1) Ambient lift (overall)
+  const ambient = new THREE.AmbientLight(0xffffff, 0.55);
+  scene.add(ambient);
 
-    // Directional light to simulate the sun
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    directionalLight.position.set(50, 50, 25);
-    directionalLight.castShadow = true;
+  // 2) Sky/ground fill
+  const hemi = new THREE.HemisphereLight(0xbfd3ff, 0x101010, 0.75);
+  scene.add(hemi);
 
-    // Configure shadow properties
-    directionalLight.shadow.mapSize.width = 2048;
-    directionalLight.shadow.mapSize.height = 2048;
-    directionalLight.shadow.camera.near = 0.5;
-    directionalLight.shadow.camera.far = 500;
-    directionalLight.shadow.camera.left = -100;
-    directionalLight.shadow.camera.right = 100;
-    directionalLight.shadow.camera.top = 100;
-    directionalLight.shadow.camera.bottom = -100;
+  // 3) Key sun with high-quality shadows
+  const sun = new THREE.DirectionalLight(0xffffff, 1.25);
+  sun.position.set(60, 80, 40);
+  sun.castShadow = true;
+  sun.shadow.mapSize.width = 4096;
+  sun.shadow.mapSize.height = 4096;
+  sun.shadow.camera.near = 0.5;
+  sun.shadow.camera.far = 400;
+  const s = 120; // shadow frustum size
+  sun.shadow.camera.left   = -s;
+  sun.shadow.camera.right  =  s;
+  sun.shadow.camera.top    =  s;
+  sun.shadow.camera.bottom = -s;
+  scene.add(sun);
 
-    scene.add(directionalLight);
+  // 4) Soft fill from opposite side (no shadows, reduces harsh contrast)
+  const fill = new THREE.DirectionalLight(0xffffff, 0.35);
+  fill.position.set(-40, 30, -60);
+  scene.add(fill);
 
-    // Optional: Add a helper to visualize the light source
-    // const helper = new THREE.DirectionalLightHelper(directionalLight, 5);
-    // scene.add(helper);
+  // Optional: debug helpers
+  // scene.add(new THREE.DirectionalLightHelper(sun, 5));
+  // scene.add(new THREE.HemisphereLightHelper(hemi, 5));
 }
-
