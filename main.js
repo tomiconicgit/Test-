@@ -3,7 +3,7 @@ import { createSkydome } from './Skydome.js';
 import { setupLighting } from './Lighting.js';
 import { CameraRig } from './Camera.js';
 import { Joystick } from './Joystick.js';
-import { Mechzilla } from './Mechzilla.js';
+import { MechzillaTower } from './MechzillaTower.js'; // ⬅️ NEW
 
 class Game {
   constructor() {
@@ -15,39 +15,33 @@ class Game {
     this.playerHeight = 1.7;
 
     this.setupWorld();
+
     this.joystick = new Joystick(
       document.getElementById('joystick-container'),
       document.getElementById('joystick-handle')
     );
 
-    // --- Mechzilla ---
-    this.tower = new Mechzilla({});
-    this.scene.add(this.tower.root);
+    // --- Add Mechzilla
+    this.tower = new MechzillaTower({
+      height: 75,
+      baseSize: 6,
+      armLength: 24,
+      position: new THREE.Vector3(-10, 0, -8)   // place near pad
+    });
+    this.scene.add(this.tower.group);
 
-    // UI wiring
-    this.bindTowerUI();
+    // UI hooks
+    const btn = document.getElementById('toggle-arms');
+    const slider = document.getElementById('arm-height');
+    if (btn) btn.addEventListener('click', () => this.tower.toggle());
+    if (slider) slider.addEventListener('input', (e) => {
+      const v = Number(e.target.value);
+      this.tower.setCatcherHeight(v);
+    });
 
     this.clock = new THREE.Clock();
     this.animate = this.animate.bind(this);
     this.animate();
-  }
-
-  bindTowerUI() {
-    const btnChop = document.getElementById('btn-chop');
-    const btnBooster = document.getElementById('btn-booster');
-    const btnShip = document.getElementById('btn-ship');
-
-    const refreshLabels = () => {
-      btnChop.textContent = this.tower.state.chopstickOpen ? 'Close Chopsticks' : 'Open Chopsticks';
-      btnBooster.textContent = this.tower.state.boosterQDExtended ? 'Retract Booster QD' : 'Extend Booster QD';
-      btnShip.textContent = this.tower.state.shipQDExtended ? 'Retract Ship QD' : 'Extend Ship QD';
-    };
-
-    btnChop.onclick = () => { this.tower.toggleChopsticks(); refreshLabels(); };
-    btnBooster.onclick = () => { this.tower.toggleBoosterQD(); refreshLabels(); };
-    btnShip.onclick = () => { this.tower.toggleShipQD(); refreshLabels(); };
-
-    refreshLabels();
   }
 
   setupWorld() {
@@ -60,39 +54,38 @@ class Game {
     setupLighting(this.scene);
 
     this.scene.add(this.cameraRig.camera);
-    this.cameraRig.camera.position.set(0, this.playerHeight, 18); // start near the pad
-    this.cameraRig.lon = 180; // look toward tower by default
+    this.cameraRig.camera.position.set(8, this.playerHeight, 18); // a nicer starting view
+    this.cameraRig.lon = -140; // look roughly toward tower
+    this.cameraRig.lat = -5;
   }
 
-  handleControls(dt) {
-    const moveSpeed = 5 * dt;
-
+  handleControls(deltaTime) {
+    const moveSpeed = 5 * deltaTime;
     if (this.joystick.isActive) {
-      const forward = this.joystick.vertical;
-      const strafe = this.joystick.horizontal;
+      const forwardMovement = this.joystick.vertical;
+      const strafeMovement = this.joystick.horizontal;
 
-      const dir = new THREE.Vector3();
-      this.cameraRig.camera.getWorldDirection(dir);
-      dir.y = 0; dir.normalize();
-      const right = dir.clone().applyAxisAngle(new THREE.Vector3(0,1,0), Math.PI/2);
+      const direction = new THREE.Vector3();
+      this.cameraRig.camera.getWorldDirection(direction);
+      direction.y = 0;
+      direction.normalize();
 
-      const move = new THREE.Vector3();
-      if (forward) move.addScaledVector(dir, -forward * moveSpeed);
-      if (strafe)  move.addScaledVector(right, -strafe * moveSpeed);
+      const strafeDirection = direction.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 2);
 
-      this.cameraRig.camera.position.add(move);
+      const moveVector = new THREE.Vector3();
+      if (forwardMovement !== 0) moveVector.addScaledVector(direction, -forwardMovement * moveSpeed);
+      if (strafeMovement !== 0) moveVector.addScaledVector(strafeDirection, -strafeMovement * moveSpeed);
+
+      this.cameraRig.camera.position.add(moveVector);
     }
 
-    // keep camera on ground (plane)
-    const terrain = this.scene.getObjectByName('terrain');
+    // Stick to ground
+    const terrain = this.scene.getObjectByName("terrain");
     if (terrain) {
       const rayOrigin = new THREE.Vector3(this.cameraRig.camera.position.x, 50, this.cameraRig.camera.position.z);
-      this.raycaster.set(rayOrigin, new THREE.Vector3(0,-1,0));
-      const isects = this.raycaster.intersectObject(terrain);
-      if (isects.length) {
-        const groundY = isects[0].point.y;
-        this.cameraRig.camera.position.y = groundY + this.playerHeight;
-      }
+      this.raycaster.set(rayOrigin, new THREE.Vector3(0, -1, 0));
+      const hits = this.raycaster.intersectObject(terrain);
+      if (hits.length > 0) this.cameraRig.camera.position.y = hits[0].point.y + this.playerHeight;
     }
   }
 
@@ -101,8 +94,9 @@ class Game {
     const dt = this.clock.getDelta();
 
     this.handleControls(dt);
-    this.tower.update(dt);
     this.cameraRig.update();
+
+    if (this.tower) this.tower.update(dt); // ⬅️ animate arms/height
 
     this.renderer.render(this.scene, this.cameraRig.camera);
   }
