@@ -36,7 +36,6 @@ export class VoxelWorld {
     return this.chunks.get(k);
   }
 
-  // Fill 100×100 area from y=0 down to heightMin with CONCRETE
   seedFlat(scene, blockLib, size=100){
     this.scene=scene; this.blockLib=blockLib;
     const half=Math.floor(size/2);
@@ -80,13 +79,12 @@ export class VoxelWorld {
     if(!chunk.needsRemesh) return;
     chunk.needsRemesh=false;
 
-    // clear old
     for(const m of chunk.meshes.values()){ chunk.group.remove(m); m.geometry.dispose(); }
     chunk.meshes.clear();
 
-    const accum=new Map(); // id -> {p,n,u,u2,idx,count}
+    const accum=new Map();
     const cs=this.chunkSize, half=Math.floor(this.worldSize/2);
-
+    
     const dirs=[
       { n:[ 1,0,0], u:[0,0,1], v:[0,1,0] }, { n:[-1,0,0], u:[0,0,-1], v:[0,1,0] },
       { n:[ 0,1,0], u:[1,0,0], v:[0,0,1] }, { n:[ 0,-1,0],u:[1,0,0], v:[0,0,-1]},
@@ -114,20 +112,18 @@ export class VoxelWorld {
         }
         const { p, n, u, u2, idx } = pack;
 
-        const ox = x + 0.5 * d.n[0], oy = y + 0.5 * d.n[1], oz = z + 0.5 * d.n[2];
-        const ux = d.u[0] * 0.5, uy = d.u[1] * 0.5, uz = d.u[2] * 0.5;
-        const vx = d.v[0] * 0.5, vy = d.v[1] * 0.5, vz = d.v[2] * 0.5;
+        const ox=x+0.5*d.n[0], oy=y+0.5*d.n[1], oz=z+0.5*d.n[2];
+        const ux=d.u[0]*0.5, uy=d.u[1]*0.5, uz=d.u[2]*0.5;
+        const vx=d.v[0]*0.5, vy=d.v[1]*0.5, vz=d.v[2]*0.5;
 
         const base = pack.count;
         const verts = [
-          [ox - ux - vx, oy - uy - vy, oz - uz - vz],
-          [ox + ux - vx, oy + uy - vy, oz + uz - vz],
-          [ox + ux + vx, oy + uy + vy, oz + uz + vz],
-          [ox - ux + vx, oy - uy + vy, oz - uz + vz],
+          [ox-ux-vx, oy-uy-vy, oz-uz-vz], [ox+ux-vx, oy+uy-vy, oz+uz-vz],
+          [ox+ux+vx, oy+uy+vy, oz+uz+vz], [ox-ux+vx, oy-uy+vy, oz-uz+vz],
         ];
-        for (const vv of verts) { p.push(vv[0], vv[1], vv[2]); n.push(d.n[0], d.n[1], d.n[2]); }
-        u.push(0, 0, 1, 0, 1, 1, 0, 1); u2.push(0, 0, 1, 0, 1, 1, 0, 1);
-        idx.push(base + 0, base + 1, base + 2, base + 0, base + 2, base + 3);
+        for (const vv of verts) { p.push(vv[0],vv[1],vv[2]); n.push(d.n[0],d.n[1],d.n[2]); }
+        u.push(0,0, 1,0, 1,1, 0,1); u2.push(0,0, 1,0, 1,1, 0,1);
+        idx.push(base+0,base+1,base+2, base+0,base+2,base+3);
         pack.count += 4;
       }
     }
