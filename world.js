@@ -7,31 +7,37 @@ export class World {
         this.sizeZ = sizeZ;
         this.minY = minY;
         this.maxY = maxY;
-        this.chunkSizeX = 32;
-        this.chunkSizeY = 32;
-        this.chunkSizeZ = 32;
+        this.chunkSizeX = 16;
+        this.chunkSizeY = 16;
+        this.chunkSizeZ = 16;
         this.chunks = new Map();
         this.blockMeshes = [];
         this.textureLoader = new THREE.TextureLoader();
 
-        this.concreteMaterial = new THREE.MeshStandardMaterial({ color: 0x808080 });
+        // Materials
+        this.concreteMaterial = new THREE.MeshStandardMaterial({ color: 0x808080, roughness: 0.8 });
 
         this.metalMaterial = new THREE.MeshStandardMaterial({
             map: this.textureLoader.load('assets/metal_albedo.png'),
             normalMap: this.textureLoader.load('assets/metal_normal.png'),
             aoMap: this.textureLoader.load('assets/metal_ao.png'),
-            displacementMap: this.textureLoader.load('assets/metal_height.png'),
-            displacementScale: 0.05,
             metalnessMap: this.textureLoader.load('assets/metal_metallic.png'),
             metalness: 1.0,
-            roughness: 0.5
+            roughness: 0.4
+        });
+        
+        [this.concreteMaterial, this.metalMaterial].forEach(mat => {
+            if (mat.map) {
+                mat.map.wrapS = THREE.RepeatWrapping;
+                mat.map.wrapT = THREE.RepeatWrapping;
+            }
         });
 
         this.materials = [null, this.concreteMaterial, this.metalMaterial];
     }
 
     getChunkKey(cx, cy, cz) {
-        return `${cx}_${cy}_${cz}`;
+        return `${cx},${cy},${cz}`;
     }
 
     getChunk(x, y, z) {
@@ -53,11 +59,10 @@ export class World {
     }
 
     localIndex(lx, ly, lz) {
-        return lx * this.chunkSizeY * this.chunkSizeZ + ly * this.chunkSizeZ + lz;
+        return ly * (this.chunkSizeX * this.chunkSizeZ) + lz * this.chunkSizeX + lx;
     }
 
     getBlock(x, y, z) {
-        if (x < 0 || x >= this.sizeX || y < this.minY || y > this.maxY || z < 0 || z >= this.sizeZ) return 0;
         const cx = Math.floor(x / this.chunkSizeX);
         const cy = Math.floor(y / this.chunkSizeY);
         const cz = Math.floor(z / this.chunkSizeZ);
@@ -70,19 +75,23 @@ export class World {
     }
 
     setBlock(x, y, z, type) {
-        if (x < 0 || x >= this.sizeX || y < this.minY || y > this.maxY || z < 0 || z >= this.sizeZ) return;
+        if (x < 0 || x >= this.sizeX || y < this.minY || y >= this.maxY || z < 0 || z >= this.sizeZ) return;
         const cx = Math.floor(x / this.chunkSizeX);
         const cy = Math.floor(y / this.chunkSizeY);
         const cz = Math.floor(z / this.chunkSizeZ);
-        const key = this.getChunkKey(cx, cy, cz);
-        let chunk = this.chunks.get(key);
+        let chunk = this.chunks.get(this.getChunkKey(cx, cy, cz));
         if (!chunk) chunk = this.createChunk(cx, cy, cz);
+        
         const lx = x - cx * this.chunkSizeX;
         const ly = y - cy * this.chunkSizeY;
         const lz = z - cz * this.chunkSizeZ;
+        
+        if (chunk.data[this.localIndex(lx, ly, lz)] === type) return;
+
         chunk.data[this.localIndex(lx, ly, lz)] = type;
         chunk.dirty = true;
-        // Mark neighboring chunks dirty if on edge
+        
+        // Mark neighboring chunks as dirty if block is on a chunk edge
         if (lx === 0) this.markDirty(cx - 1, cy, cz);
         if (lx === this.chunkSizeX - 1) this.markDirty(cx + 1, cy, cz);
         if (ly === 0) this.markDirty(cx, cy - 1, cz);
@@ -97,9 +106,13 @@ export class World {
     }
 
     generate() {
+        // Generate simple rolling hills
         for (let x = 0; x < this.sizeX; x++) {
             for (let z = 0; z < this.sizeZ; z++) {
-                this.setBlock(x, 0, z, 1); // concrete at y=0
+                const height = Math.floor(Math.sin(x / 20) * 5 + Math.cos(z / 15) * 4) + 8;
+                for (let y = this.minY; y <= height; y++) {
+                    this.setBlock(x, y, z, 1);
+                }
             }
         }
         this.rebuildDirtyChunks();
@@ -108,7 +121,7 @@ export class World {
     rebuildDirtyChunks() {
         this.chunks.forEach((chunk, key) => {
             if (chunk.dirty) {
-                const [cx, cy, cz] = key.split('_').map(Number);
+                const [cx, cy, cz] = key.split(',').map(Number);
                 this.buildChunk(cx, cy, cz);
                 chunk.dirty = false;
             }
@@ -119,29 +132,30 @@ export class World {
         const chunk = this.chunks.get(this.getChunkKey(cx, cy, cz));
         if (!chunk) return;
 
+        // Clear existing meshes
         chunk.meshes.forEach(mesh => {
             this.scene.remove(mesh);
             const index = this.blockMeshes.indexOf(mesh);
-            if (index !== -1) this.blockMeshes.splice(index, 1);
+            if (index > -1) this.blockMeshes.splice(index, 1);
             mesh.geometry.dispose();
         });
         chunk.meshes = [];
 
         const cubeFaces = [
-            { normal: [1, 0, 0], corners: [[1, 0, 0], [1, 0, 1], [1, 1, 1], [1, 1, 0]] }, // +x
-            { normal: [-1, 0, 0], corners: [[0, 0, 0], [0, 1, 0], [0, 1, 1], [0, 0, 1]] }, // -x
-            { normal: [0, 1, 0], corners: [[0, 1, 0], [1, 1, 0], [1, 1, 1], [0, 1, 1]] }, // +y
-            { normal: [0, -1, 0], corners: [[0, 0, 0], [0, 0, 1], [1, 0, 1], [1, 0, 0]] }, // -y
-            { normal: [0, 0, 1], corners: [[0, 0, 1], [0, 1, 1], [1, 1, 1], [1, 0, 1]] }, // +z
-            { normal: [0, 0, -1], corners: [[0, 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0]] }  // -z
+            { normal: [1, 0, 0], corners: [[1, 0, 0], [1, 1, 0], [1, 1, 1], [1, 0, 1]] }, // right (+x)
+            { normal: [-1, 0, 0], corners: [[0, 0, 1], [0, 1, 1], [0, 1, 0], [0, 0, 0]] }, // left (-x)
+            { normal: [0, 1, 0], corners: [[0, 1, 1], [1, 1, 1], [1, 1, 0], [0, 1, 0]] }, // top (+y)
+            { normal: [0, -1, 0], corners: [[0, 0, 0], [1, 0, 0], [1, 0, 1], [0, 0, 1]] }, // bottom (-y)
+            { normal: [0, 0, 1], corners: [[1, 0, 1], [1, 1, 1], [0, 1, 1], [0, 0, 1]] }, // back (+z)
+            { normal: [0, 0, -1], corners: [[0, 0, 0], [0, 1, 0], [1, 1, 0], [1, 0, 0]] }  // front (-z)
         ];
+        const uvsForQuad = [[0, 0], [0, 1], [1, 1], [1, 0]];
 
-        for (let type = 1; type <= 2; type++) {
+        for (let type = 1; type < this.materials.length; type++) {
             const positions = [];
             const normals = [];
             const uvs = [];
             const indices = [];
-            let vertexIndex = 0;
 
             for (let lx = 0; lx < this.chunkSizeX; lx++) {
                 for (let ly = 0; ly < this.chunkSizeY; ly++) {
@@ -150,18 +164,19 @@ export class World {
                             const gx = cx * this.chunkSizeX + lx;
                             const gy = cy * this.chunkSizeY + ly;
                             const gz = cz * this.chunkSizeZ + lz;
+
                             cubeFaces.forEach(face => {
                                 const nx = gx + face.normal[0];
                                 const ny = gy + face.normal[1];
                                 const nz = gz + face.normal[2];
                                 if (this.getBlock(nx, ny, nz) === 0) {
-                                    face.corners.forEach(corner => {
+                                    const vertexIndex = positions.length / 3;
+                                    face.corners.forEach((corner, i) => {
                                         positions.push(gx + corner[0], gy + corner[1], gz + corner[2]);
                                         normals.push(...face.normal);
-                                        uvs.push(corner[0] ^ corner[1] ^ corner[2], corner[1] ^ corner[2] ^ corner[0]);
+                                        uvs.push(...uvsForQuad[i]);
                                     });
                                     indices.push(vertexIndex, vertexIndex + 1, vertexIndex + 2, vertexIndex, vertexIndex + 2, vertexIndex + 3);
-                                    vertexIndex += 4;
                                 }
                             });
                         }
@@ -176,7 +191,6 @@ export class World {
                 geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
                 geometry.setIndex(indices);
                 const mesh = new THREE.Mesh(geometry, this.materials[type]);
-                mesh.frustumCulled = true;
                 this.scene.add(mesh);
                 this.blockMeshes.push(mesh);
                 chunk.meshes.push(mesh);
