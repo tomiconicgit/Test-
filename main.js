@@ -1,9 +1,10 @@
+// main.js
 import { createTerrain } from './Terrain.js';
 import { createSkydome } from './Skydome.js';
 import { setupLighting } from './Lighting.js';
 import { CameraRig } from './Camera.js';
 import { Joystick } from './Joystick.js';
-import { MechzillaTower } from './MechzillaTower.js'; // ⬅️ NEW
+import { MechzillaTower } from './MechzillaTower.js';
 
 class Game {
   constructor() {
@@ -21,23 +22,20 @@ class Game {
       document.getElementById('joystick-handle')
     );
 
-    // --- Add Mechzilla
+    // Mechzilla
     this.tower = new MechzillaTower({
       height: 75,
       baseSize: 6,
       armLength: 24,
-      position: new THREE.Vector3(-10, 0, -8)   // place near pad
+      position: new THREE.Vector3(-10, 0, -8)
     });
     this.scene.add(this.tower.group);
 
-    // UI hooks
+    // UI
     const btn = document.getElementById('toggle-arms');
     const slider = document.getElementById('arm-height');
     if (btn) btn.addEventListener('click', () => this.tower.toggle());
-    if (slider) slider.addEventListener('input', (e) => {
-      const v = Number(e.target.value);
-      this.tower.setCatcherHeight(v);
-    });
+    if (slider) slider.addEventListener('input', (e) => this.tower.setCatcherHeight(Number(e.target.value)));
 
     this.clock = new THREE.Clock();
     this.animate = this.animate.bind(this);
@@ -45,41 +43,37 @@ class Game {
   }
 
   setupWorld() {
-    const terrain = createTerrain();
-    this.scene.add(terrain);
-
-    const skydome = createSkydome();
-    this.scene.add(skydome);
-
+    const terrain = createTerrain(); this.scene.add(terrain);
+    const skydome = createSkydome(); this.scene.add(skydome);
     setupLighting(this.scene);
 
     this.scene.add(this.cameraRig.camera);
-    this.cameraRig.camera.position.set(8, this.playerHeight, 18); // a nicer starting view
-    this.cameraRig.lon = -140; // look roughly toward tower
+    this.cameraRig.camera.position.set(8, this.playerHeight, 18);
+    this.cameraRig.lon = -140; // face the tower initially
     this.cameraRig.lat = -5;
   }
 
   handleControls(deltaTime) {
     const moveSpeed = 5 * deltaTime;
+
     if (this.joystick.isActive) {
-      const forwardMovement = this.joystick.vertical;
-      const strafeMovement = this.joystick.horizontal;
+      const forward = this.joystick.vertical;
+      const strafe  = this.joystick.horizontal;
 
-      const direction = new THREE.Vector3();
-      this.cameraRig.camera.getWorldDirection(direction);
-      direction.y = 0;
-      direction.normalize();
+      const dir = new THREE.Vector3();
+      this.cameraRig.camera.getWorldDirection(dir);
+      dir.y = 0; dir.normalize();
 
-      const strafeDirection = direction.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 2);
+      const right = dir.clone().applyAxisAngle(new THREE.Vector3(0,1,0), Math.PI/2);
 
-      const moveVector = new THREE.Vector3();
-      if (forwardMovement !== 0) moveVector.addScaledVector(direction, -forwardMovement * moveSpeed);
-      if (strafeMovement !== 0) moveVector.addScaledVector(strafeDirection, -strafeMovement * moveSpeed);
+      const move = new THREE.Vector3();
+      if (forward) move.addScaledVector(dir, -forward * moveSpeed);
+      if (strafe)  move.addScaledVector(right, -strafe * moveSpeed);
 
-      this.cameraRig.camera.position.add(moveVector);
+      this.cameraRig.camera.position.add(move);
     }
 
-    // Stick to ground
+    // Ground stick
     const terrain = this.scene.getObjectByName("terrain");
     if (terrain) {
       const rayOrigin = new THREE.Vector3(this.cameraRig.camera.position.x, 50, this.cameraRig.camera.position.z);
@@ -96,7 +90,7 @@ class Game {
     this.handleControls(dt);
     this.cameraRig.update();
 
-    if (this.tower) this.tower.update(dt); // ⬅️ animate arms/height
+    if (this.tower) this.tower.update(dt);
 
     this.renderer.render(this.scene, this.cameraRig.camera);
   }
