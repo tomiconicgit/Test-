@@ -86,52 +86,49 @@ export class VoxelWorld {
 
     const accum=new Map(); // id -> {p,n,u,u2,idx,count}
     const cs=this.chunkSize, half=Math.floor(this.worldSize/2);
-    const x0=cx*cs, x1=x0+cs, z0=cz*cs, z1=z0+cs;
-
-    // completely outside?
-    if(x1<=-half||x0>=half||z1<=-half||z0>=half) return;
 
     const dirs=[
-      { n:[ 1,0,0], u:[0,0,1], v:[0,1,0] },
-      { n:[-1,0,0], u:[0,0,-1], v:[0,1,0] },
-      { n:[ 0,1,0], u:[1,0,0], v:[0,0,1] },
-      { n:[ 0,-1,0],u:[1,0,0], v:[0,0,-1]},
-      { n:[ 0,0,1], u:[1,0,0], v:[0,1,0] },
-      { n:[ 0,0,-1],u:[-1,0,0],v:[0,1,0] },
+      { n:[ 1,0,0], u:[0,0,1], v:[0,1,0] }, { n:[-1,0,0], u:[0,0,-1], v:[0,1,0] },
+      { n:[ 0,1,0], u:[1,0,0], v:[0,0,1] }, { n:[ 0,-1,0],u:[1,0,0], v:[0,0,-1]},
+      { n:[ 0,0,1], u:[1,0,0], v:[0,1,0] }, { n:[ 0,0,-1],u:[-1,0,0],v:[0,1,0] },
     ];
 
-    for(let x=Math.max(x0,-half); x<Math.min(x1,half); x++){
-      for(let z=Math.max(z0,-half); z<Math.min(z1,half); z++){
-        for(let y=0; y>=this.heightMin; y--){
-          const id=this.getBlock(x,y,z);
-          if(id===BLOCK.AIR) continue;
+    for (const [key, id] of chunk.voxels.entries()) {
+      if (id === BLOCK.AIR) continue;
 
-          for(let f=0; f<6; f++){
-            const d=dirs[f];
-            const nx=x+d.n[0], ny=y+d.n[1], nz=z+d.n[2];
-            if(this.getBlock(nx,ny,nz)!==BLOCK.AIR) continue;
+      const [lx, y, lz] = key.split('|').map(Number);
+      const x = cx * cs + lx;
+      const z = cz * cs + lz;
 
-            let pack=accum.get(id);
-            if(!pack){ pack={p:[],n:[],u:[],u2:[],idx:[],count:0}; accum.set(id,pack); }
-            const {p,n,u,u2,idx}=pack;
+      if (x < -half || x >= half || z < -half || z >= half) continue;
 
-            const ox=x+0.5*d.n[0], oy=y+0.5*d.n[1], oz=z+0.5*d.n[2];
-            const ux=d.u[0]*0.5, uy=d.u[1]*0.5, uz=d.u[2]*0.5;
-            const vx=d.v[0]*0.5, vy=d.v[1]*0.5, vz=d.v[2]*0.5;
+      for (let f = 0; f < 6; f++) {
+        const d = dirs[f];
+        const nx = x + d.n[0], ny = y + d.n[1], nz = z + d.n[2];
+        if (this.getBlock(nx, ny, nz) !== BLOCK.AIR) continue;
 
-            const base=pack.count;
-            const verts=[
-              [ox-ux-vx, oy-uy-vy, oz-uz-vz],
-              [ox+ux-vx, oy+uy-vy, oz+uz-vz],
-              [ox+ux+vx, oy+uy+vy, oz+uz+vz],
-              [ox-ux+vx, oy-uy+vy, oz-uz+vz],
-            ];
-            for(const vv of verts){ p.push(vv[0],vv[1],vv[2]); n.push(d.n[0],d.n[1],d.n[2]); }
-            u.push(0,0, 1,0, 1,1, 0,1); u2.push(0,0, 1,0, 1,1, 0,1);
-            idx.push(base+0,base+1,base+2, base+0,base+2,base+3);
-            pack.count+=4;
-          }
+        let pack = accum.get(id);
+        if (!pack) {
+          pack = { p: [], n: [], u: [], u2: [], idx: [], count: 0 };
+          accum.set(id, pack);
         }
+        const { p, n, u, u2, idx } = pack;
+
+        const ox = x + 0.5 * d.n[0], oy = y + 0.5 * d.n[1], oz = z + 0.5 * d.n[2];
+        const ux = d.u[0] * 0.5, uy = d.u[1] * 0.5, uz = d.u[2] * 0.5;
+        const vx = d.v[0] * 0.5, vy = d.v[1] * 0.5, vz = d.v[2] * 0.5;
+
+        const base = pack.count;
+        const verts = [
+          [ox - ux - vx, oy - uy - vy, oz - uz - vz],
+          [ox + ux - vx, oy + uy - vy, oz + uz - vz],
+          [ox + ux + vx, oy + uy + vy, oz + uz + vz],
+          [ox - ux + vx, oy - uy + vy, oz - uz + vz],
+        ];
+        for (const vv of verts) { p.push(vv[0], vv[1], vv[2]); n.push(d.n[0], d.n[1], d.n[2]); }
+        u.push(0, 0, 1, 0, 1, 1, 0, 1); u2.push(0, 0, 1, 0, 1, 1, 0, 1);
+        idx.push(base + 0, base + 1, base + 2, base + 0, base + 2, base + 3);
+        pack.count += 4;
       }
     }
 
