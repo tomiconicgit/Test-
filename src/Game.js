@@ -20,7 +20,7 @@ export const Game = {
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x0e1218);
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.05, maxSky+200);
-    // The camera's starting position is now set directly in the controller options below.
+    // The camera's starting position is now set explicitly in the controller options below.
 
     // Sky
     {
@@ -67,7 +67,7 @@ export const Game = {
     // Count meshed content
     let chunkMeshCount=0; for (const ch of world.chunks.values()) chunkMeshCount += ch.meshes.size;
 
-    // Guaranteed fallback floor if meshing yielded nothing (shouldn’t, but safe)
+    // Guaranteed fallback floor if meshing yielded nothing
     let fallbackFloor=null;
     if(chunkMeshCount===0){
       const floorGeo=new THREE.PlaneGeometry(worldSize,worldSize,1,1);
@@ -99,7 +99,7 @@ export const Game = {
       }
     );
 
-    // Collision & bounds (prevents falling through terrain)
+    // Collision & bounds
     const raycaster = new THREE.Raycaster();
     controls.setCollision({
       raycaster,
