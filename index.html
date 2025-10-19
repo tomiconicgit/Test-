@@ -1,49 +1,49 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>3D World</title>
-    <link rel="manifest" href="manifest.json">
-    <!-- Link to the new SVG icon -->
-    <link rel="icon" href="icon.svg" type="image/svg+xml">
-    <link rel="apple-touch-icon" href="icon.svg">
-    <style>
-        body { margin: 0; overflow: hidden; background-color: #000; }
-        canvas { display: block; }
-        #joystick-container {
-            position: absolute;
-            bottom: 20px;
-            left: 20px;
-            width: 120px;
-            height: 120px;
-            background-color: rgba(255, 255, 255, 0.2);
-            border-radius: 50%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-        #joystick-handle {
-            width: 60px;
-            height: 60px;
-            background-color: rgba(255, 255, 255, 0.5);
-            border-radius: 50%;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>3D World</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <style>
+    body { margin:0; overflow:hidden; background:#000; }
+    canvas { display:block; }
+    /* Joystick (left-bottom) */
+    #joystick-container{
+      position:absolute; bottom:20px; left:20px; width:120px; height:120px;
+      background:rgba(255,255,255,.2); border-radius:50%;
+      display:flex; justify-content:center; align-items:center; backdrop-filter:blur(8px)
+    }
+    #joystick-handle{ width:60px; height:60px; background:rgba(255,255,255,.5); border-radius:50% }
+    /* Tower control HUD (top-right) */
+    #tower-ui{
+      position:absolute; right:16px; top:16px; display:flex; flex-direction:column; gap:8px;
+      padding:12px; border-radius:12px; background:rgba(20,20,24,.55); backdrop-filter:blur(10px);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Inter, sans-serif; color:#e8eef7
+    }
+    #tower-ui button{
+      font-size:14px; padding:10px 12px; border:0; border-radius:10px; background:#1f6feb; color:white;
+    }
+    #tower-ui button.secondary{ background:#41464b; }
+  </style>
 </head>
 <body>
-    <div id="joystick-container">
-        <div id="joystick-handle"></div>
+  <div id="joystick-container"><div id="joystick-handle"></div></div>
+
+  <!-- Tower controls -->
+  <div id="tower-ui">
+    <button id="btn-chop">Open Chopsticks</button>
+    <div style="display:flex; gap:8px;">
+      <button id="btn-booster" class="secondary">Extend Booster QD</button>
+      <button id="btn-ship" class="secondary">Extend Ship QD</button>
     </div>
+  </div>
 
-    <!-- External Tools and APIs -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-
-    <!-- Game Modules -->
-    <script type="module" src="main.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script type="module" src="main.js"></script>
 </body>
 </html>
-
-
