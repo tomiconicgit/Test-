@@ -1,310 +1,430 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ShopDrift - Modern Dropshipping Store</title>
-    
-    <!-- PWA Manifest and Theme Color -->
-    <link rel="manifest" href="manifest.json">
-    <meta name="theme-color" content="#4f46e5">
-
-    <!-- iOS Specific PWA Meta Tags -->
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="ShopDrift">
-    <link rel="apple-touch-icon" href="icons/icon-192x192.png">
-
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- Google Fonts: Inter -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-
-    <style>
-        /* Custom styles to ensure a clean, modern look */
-        body {
-            font-family: 'Inter', sans-serif;
-            -webkit-font-smoothing: antialiased;
-            -moz-osx-font-smoothing: grayscale;
-        }
-
-        /* Smooth transition for mobile menu */
-        #mobile-menu {
-            transition: max-height 0.3s ease-in-out, opacity 0.3s ease-in-out;
-            max-height: 0;
-            opacity: 0;
-            overflow: hidden;
-        }
-        
-        #mobile-menu.open {
-            max-height: 500px;
-            opacity: 1;
-        }
-
-        /* Style for the Apple Pay Button */
-        .apple-pay-button {
-            display: none; /* Hidden by default, shown via JS if Apple Pay is available */
-            -webkit-appearance: -apple-pay-button;
-            -apple-pay-button-type: buy; /* or plain, checkout, etc. */
-            -apple-pay-button-style: black; /* or white, white-outline */
-            height: 44px;
-            width: 100%;
-        }
-
-        /* Cart modal transition */
-        #cart-modal {
-            transition: opacity 0.3s ease-in-out;
-        }
-    </style>
+  <meta charset="utf-8" />
+  <title>Procedural Mechzilla (Three.js, single file)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1.0, user-scalable=no" />
+  <style>
+    html, body { height:100%; margin:0; background:#0b0d10; overflow:hidden; }
+    #info {
+      position:fixed; left:12px; bottom:12px; color:#cfd6df; font:12px/1.35 system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      background:rgba(17,20,24,.55); border:1px solid rgba(255,255,255,.08); padding:10px 12px; border-radius:10px; backdrop-filter:blur(8px)
+    }
+    #info b { color:#fff }
+    canvas { display:block; }
+  </style>
 </head>
-<body class="bg-gray-50 text-gray-800">
+<body>
+<div id="info">
+  <b>Controls</b> — Orbit: mouse/touch ·
+  <b>1</b>/<b>2</b> chopsticks open/close ·
+  <b>Q</b>/<b>W</b> rotate QD ·
+  <b>A</b>/<b>S</b> extend QD ·
+  <b>Z</b>/<b>X</b> rotate upper arm
+</div>
 
-    <!-- Header -->
-    <header class="bg-white shadow-sm sticky top-0 z-50">
-        <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between items-center h-16">
-                <!-- Logo -->
-                <div class="flex-shrink-0">
-                    <a href="#" class="text-2xl font-bold text-gray-900">ShopDrift</a>
-                </div>
+<script type="module">
+/* Imports (ESM via CDN) */
+import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+import GUI from 'https://cdn.jsdelivr.net/npm/lil-gui@0.19/+esm';
 
-                <!-- Desktop Navigation -->
-                <div class="hidden md:flex md:space-x-8">
-                    <a href="#" class="text-gray-500 hover:text-gray-900 font-medium transition-colors">Home</a>
-                    <a href="#" class="text-gray-500 hover:text-gray-900 font-medium transition-colors">Catalog</a>
-                    <a href="#" class="text-gray-500 hover:text-gray-900 font-medium transition-colors">New Arrivals</a>
-                    <a href="#" class="text-gray-500 hover:text-gray-900 font-medium transition-colors">About Us</a>
-                </div>
+/* ---------- Scene / Camera / Renderer ---------- */
+const scene   = new THREE.Scene();
+scene.background = new THREE.Color(0x0b0d10);
 
-                <!-- Icons & Mobile Menu Button -->
-                <div class="flex items-center">
-                    <button id="cart-button" class="relative p-2 text-gray-500 hover:text-gray-900 transition-colors">
-                        <!-- Shopping Cart Icon SVG -->
-                        <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-                        </svg>
-                        <span id="cart-badge" class="absolute -top-1 -right-1 bg-indigo-600 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center hidden">0</span>
-                    </button>
-                    <div class="md:hidden ml-2">
-                        <button id="menu-button" class="inline-flex items-center justify-center p-2 rounded-md text-gray-500 hover:text-gray-900 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500">
-                            <span class="sr-only">Open main menu</span>
-                            <svg id="menu-icon-open" class="block h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
-                            <svg id="menu-icon-close" class="hidden h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </nav>
+const camera  = new THREE.PerspectiveCamera(55, innerWidth/innerHeight, 0.1, 2000);
+camera.position.set(85, 85, 120);
 
-        <!-- Mobile Menu -->
-        <div id="mobile-menu" class="md:hidden">
-            <div class="px-2 pt-2 pb-3 space-y-1 sm:px-3">
-                <a href="#" class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50">Home</a>
-                <a href="#" class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50">Catalog</a>
-                <a href="#" class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50">New Arrivals</a>
-                <a href="#" class="block px-3 py-2 rounded-md text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50">About Us</a>
-            </div>
-        </div>
-    </header>
+const renderer = new THREE.WebGLRenderer({ antialias:true, powerPreference:'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+document.body.appendChild(renderer.domElement);
 
-    <!-- Main Content -->
-    <main><!-- ... existing hero and featured products sections ... --></main>
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 70, 0);
+controls.enableDamping = true;
 
-    <!-- Shopping Cart Modal -->
-    <div id="cart-modal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden items-center justify-center">
-        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md m-4">
-            <div class="flex justify-between items-center mb-4">
-                <h2 class="text-2xl font-bold">Your Cart</h2>
-                <button id="close-cart-button" class="text-gray-500 hover:text-gray-800">&times;</button>
-            </div>
-            <div id="cart-items" class="divide-y divide-gray-200">
-                <!-- Cart items will be injected here by JavaScript -->
-            </div>
-            <div id="cart-empty-message" class="text-center py-8 text-gray-500">Your cart is empty.</div>
-            <div id="cart-footer" class="mt-6 hidden">
-                <div class="flex justify-between font-bold text-lg mb-4">
-                    <span>Total</span>
-                    <span id="cart-total">$0.00</span>
-                </div>
-                <button class="apple-pay-button"></button>
-                <p id="apple-pay-not-supported" class="text-center text-sm text-gray-500 mt-2 hidden">Apple Pay is not supported on this browser or device.</p>
-                <button id="standard-checkout" class="w-full bg-indigo-600 text-white py-3 rounded-lg font-semibold hover:bg-indigo-700 transition-colors">
-                    Proceed to Checkout
-                </button>
-            </div>
-        </div>
-    </div>
-    
-    <!-- ... existing footer ... -->
+/* ---------- Lights ---------- */
+scene.add(new THREE.AmbientLight(0xffffff, 0.35));
+const sun = new THREE.DirectionalLight(0xffffff, 1.0);
+sun.position.set(120, 200, 80);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.left = -300;
+sun.shadow.camera.right = 300;
+sun.shadow.camera.top = 300;
+sun.shadow.camera.bottom = -300;
+scene.add(sun);
 
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            // --- Elements ---
-            const cartButton = document.getElementById('cart-button');
-            const cartModal = document.getElementById('cart-modal');
-            const closeCartButton = document.getElementById('close-cart-button');
-            const cartBadge = document.getElementById('cart-badge');
-            const cartItemsContainer = document.getElementById('cart-items');
-            const cartEmptyMessage = document.getElementById('cart-empty-message');
-            const cartFooter = document.getElementById('cart-footer');
-            const cartTotalEl = document.getElementById('cart-total');
-            const applePayButton = document.querySelector('.apple-pay-button');
-            const applePayNotSupported = document.getElementById('apple-pay-not-supported');
-            const standardCheckoutButton = document.getElementById('standard-checkout');
+/* ---------- Ground ---------- */
+const ground = new THREE.Mesh(
+  new THREE.PlaneGeometry(1200, 1200),
+  new THREE.MeshStandardMaterial({ color:0x2a2f36, metalness:0.2, roughness:0.95 })
+);
+ground.rotation.x = -Math.PI/2;
+ground.receiveShadow = true;
+scene.add(ground);
 
-            // --- State ---
-            let cart = [];
-            const products = [
-                { id: 'prod_001', name: 'Wireless Headphones', price: 129.99, image: 'https://placehold.co/600x600/E2E8F0/4A5568?text=Product+1' },
-                { id: 'prod_002', name: 'Modern Urban Backpack', price: 69.00, image: 'https://placehold.co/600x600/CBD5E0/4A5568?text=Product+2' },
-                { id: 'prod_003', name: 'Smart Coffee Maker', price: 89.50, image: 'https://placehold.co/600x600/A0AEC0/4A5568?text=Product+3' },
-                { id: 'prod_004', name: 'Minimalist Desk Lamp', price: 45.00, image: 'https://placehold.co/600x600/718096/E2E8F0?text=Image+Failed' }
-            ];
+/* ---------- Materials ---------- */
+const steel = new THREE.MeshStandardMaterial({ color:0x8c949c, metalness:0.85, roughness:0.35 });
+const darkSteel = new THREE.MeshStandardMaterial({ color:0x3a3f45, metalness:0.9, roughness:0.45 });
 
-            // --- Cart Functions ---
-            const addToCart = (productId) => {
-                const product = products.find(p => p.id === productId);
-                if (!product) return;
-                
-                const existingItem = cart.find(item => item.id === productId);
-                if (existingItem) {
-                    existingItem.quantity++;
-                } else {
-                    cart.push({ ...product, quantity: 1 });
-                }
-                updateCartUI();
-            };
+/* ===========================================================
+   Procedural Tower (truss) + Arms
+   =========================================================== */
+const tower = new THREE.Group();
+scene.add(tower);
 
-            const updateCartUI = () => {
-                // Update badge
-                const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
-                cartBadge.textContent = totalItems;
-                cartBadge.classList.toggle('hidden', totalItems === 0);
+const params = {
+  towerHeight: 140,
+  segmentH: 6,
+  bay: 12,          // distance between vertical legs
+  brace: 1.3,       // thickness of braces
+  leg: 2.0,         // thickness of legs
+  baseOffset: 0,    // y offset for whole tower
+  // Arm defaults
+  chopstickOpen: 9,     // gap between lower arms
+  chopstickAngle: 0,    // slight pitch on chopsticks
+  qdYaw: -22,           // degrees
+  qdExtend: 22,         // linear extension
+  topYaw: -8            // degrees
+};
 
-                // Update modal
-                cartItemsContainer.innerHTML = '';
-                if (cart.length === 0) {
-                    cartEmptyMessage.style.display = 'block';
-                    cartFooter.style.display = 'none';
-                } else {
-                    cartEmptyMessage.style.display = 'none';
-                    cartFooter.style.display = 'block';
-                    let total = 0;
-                    cart.forEach(item => {
-                        total += item.price * item.quantity;
-                        const itemEl = document.createElement('div');
-                        itemEl.className = 'flex items-center py-4';
-                        itemEl.innerHTML = `
-                            <img src="${item.image}" alt="${item.name}" class="w-16 h-16 object-cover rounded-md mr-4">
-                            <div class="flex-grow">
-                                <p class="font-semibold">${item.name}</p>
-                                <p class="text-gray-500">$${item.price.toFixed(2)} x ${item.quantity}</p>
-                            </div>
-                            <p class="font-bold">$${(item.price * item.quantity).toFixed(2)}</p>
-                        `;
-                        cartItemsContainer.appendChild(itemEl);
-                    });
-                    cartTotalEl.textContent = `$${total.toFixed(2)}`;
-                }
-            };
-            
-            const openCartModal = () => cartModal.classList.replace('hidden', 'flex');
-            const closeCartModal = () => cartModal.classList.replace('flex', 'hidden');
+/* ---------- Build tower lattice ---------- */
+function buildTower() {
+  tower.clear();
 
-            // --- Apple Pay Logic ---
-            const checkApplePayAvailability = () => {
-                if ('ApplePaySession' in window && ApplePaySession.canMakePayments()) {
-                    applePayButton.style.display = 'block';
-                    standardCheckoutButton.style.display = 'none';
-                } else {
-                    applePayNotSupported.style.display = 'block';
-                }
-            };
+  const { towerHeight, segmentH, bay, brace, leg, baseOffset } = params;
+  const segments = Math.floor(towerHeight / segmentH);
 
-            const handleApplePay = async () => {
-                const totalAmount = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-                const paymentRequest = {
-                    countryCode: 'US',
-                    currencyCode: 'USD',
-                    merchantCapabilities: ['supports3DS'],
-                    supportedNetworks: ['visa', 'masterCard', 'amex', 'discover'],
-                    total: {
-                        label: 'ShopDrift',
-                        amount: totalAmount.toFixed(2),
-                    },
-                };
+  const ring = new THREE.Group();
+  tower.add(ring);
+  ring.position.y = baseOffset;
 
-                try {
-                    const session = new ApplePaySession(1, paymentRequest);
+  // Four vertical legs as InstancedMesh
+  const legGeom = new THREE.BoxGeometry(leg, segmentH, leg);
+  const legMesh = new THREE.InstancedMesh(legGeom, steel, 4 * segments);
+  legMesh.castShadow = true; legMesh.receiveShadow = true;
+  let m = new THREE.Matrix4(); let i = 0;
 
-                    session.onvalidatemerchant = async event => {
-                        // THIS IS WHERE YOU WOULD CALL YOUR BACKEND
-                        // Your backend would talk to Apple to get a valid session.
-                        // For this demo, we'll return a dummy session.
-                        console.log("Validating merchant...", event.validationURL);
-                        // In a real app, you would fetch(event.validationURL, { server-side details })
-                        // and then session.completeMerchantValidation(merchantSessionFromServer);
-                        session.completeMerchantValidation({});
-                    };
+  const corners = [
+    new THREE.Vector3( bay/2, 0,  bay/2),
+    new THREE.Vector3(-bay/2, 0,  bay/2),
+    new THREE.Vector3(-bay/2, 0, -bay/2),
+    new THREE.Vector3( bay/2, 0, -bay/2),
+  ];
 
-                    session.onpaymentauthorized = event => {
-                        // THIS IS WHERE YOU SEND THE PAYMENT TOKEN TO YOUR BACKEND
-                        // Your backend processes the payment with Stripe/Braintree etc.
-                        console.log('Payment authorized:', event.payment);
-                        // const paymentToken = event.payment.token;
-                        // In a real app: fetch('/api/process-payment', { body: JSON.stringify(paymentToken) })
-                        
-                        // Simulate backend processing
-                        setTimeout(() => {
-                            // On success:
-                            session.completePayment(ApplePaySession.STATUS_SUCCESS);
-                            alert('Payment Successful! Thank you for your order.');
-                            cart = []; // Empty cart
-                            updateCartUI();
-                            closeCartModal();
-                        }, 2000);
-                        
-                        // On failure:
-                        // session.completePayment(ApplePaySession.STATUS_FAILURE);
-                    };
+  for (let s = 0; s < segments; s++) {
+    const y = s*segmentH + segmentH/2;
+    for (const c of corners) {
+      m.compose(new THREE.Vector3(c.x, y, c.z), new THREE.Quaternion(), new THREE.Vector3(1,1,1));
+      legMesh.setMatrixAt(i++, m);
+    }
+  }
+  ring.add(legMesh);
 
-                    session.begin();
+  // Horizontal rings
+  const hGeom = new THREE.BoxGeometry(bay - leg, brace, leg);
+  const vGeom = new THREE.BoxGeometry(leg, brace, bay - leg);
 
-                } catch (error) {
-                    console.error("Error with Apple Pay session:", error);
-                    alert("Could not complete Apple Pay transaction.");
-                }
-            };
-            
-            // --- Event Listeners ---
-            document.querySelectorAll('.add-to-cart-button').forEach((button, index) => {
-                button.addEventListener('click', () => addToCart(products[index].id));
-            });
-            cartButton.addEventListener('click', openCartModal);
-            closeCartButton.addEventListener('click', closeCartModal);
-            applePayButton.addEventListener('click', handleApplePay);
-            
-            // --- Initial Setup ---
-            updateCartUI(); // Initial render
-            checkApplePayAvailability();
-        });
+  const ringCount = segments + 1;
+  const horiz = new THREE.InstancedMesh(new THREE.BoxGeometry(), steel, ringCount * 8);
+  i = 0;
 
-        // Add this script block for the original mobile menu functionality
-        const menuButton = document.getElementById('menu-button');
-        const mobileMenu = document.getElementById('mobile-menu');
-        const openIcon = document.getElementById('menu-icon-open');
-        const closeIcon = document.getElementById('menu-icon-close');
-        menuButton.addEventListener('click', () => {
-            mobileMenu.classList.toggle('open');
-            openIcon.classList.toggle('hidden');
-            closeIcon.classList.toggle('hidden');
-        });
-    </script>
+  for (let r = 0; r < ringCount; r++) {
+    const y = r*segmentH;
+    const pieces = [
+      { geom:hGeom, pos:[0, y,  bay/2], rot:[0,0,0] },
+      { geom:hGeom, pos:[0, y, -bay/2], rot:[0,0,0] },
+      { geom:vGeom, pos:[ bay/2, y, 0], rot:[0,0,0] },
+      { geom:vGeom, pos:[-bay/2, y, 0], rot:[0,0,0] },
+      // second layer (offset slightly for depth)
+      { geom:hGeom, pos:[0, y+brace*1.1,  bay/2], rot:[0,0,0] },
+      { geom:hGeom, pos:[0, y+brace*1.1, -bay/2], rot:[0,0,0] },
+      { geom:vGeom, pos:[ bay/2, y+brace*1.1, 0], rot:[0,0,0] },
+      { geom:vGeom, pos:[-bay/2, y+brace*1.1, 0], rot:[0,0,0] },
+    ];
+    for (const p of pieces) {
+      m.identity()
+       .makeRotationFromEuler(new THREE.Euler(...p.rot, 'XYZ'))
+       .setPosition(...p.pos);
+      const mesh = new THREE.Mesh(p.geom, steel);
+      horiz.setMatrixAt(i++, mesh.matrix);
+    }
+  }
+  horiz.instanceMatrix.needsUpdate = true;
+  horiz.geometry = hGeom; // placeholder; instances carry transforms
+  ring.add(horiz);
 
+  // Diagonal braces (alternating Xs on each face)
+  const dGeom = new THREE.BoxGeometry(brace, Math.hypot(segmentH, bay-leg), brace);
+  const diag = new THREE.InstancedMesh(dGeom, darkSteel, segments * 8);
+  diag.castShadow = true;
+  i = 0;
+
+  const faces = [
+    { a:[-bay/2+leg/2, 0, -bay/2+leg/2], b:[ bay/2-leg/2, segmentH, -bay/2+leg/2], axis:'z' }, // front
+    { a:[ bay/2-leg/2, 0,  bay/2-leg/2], b:[-bay/2+leg/2, segmentH,  bay/2-leg/2], axis:'z' }, // back
+    { a:[-bay/2+leg/2, 0,  bay/2-leg/2], b:[-bay/2+leg/2, segmentH, -bay/2+leg/2], axis:'x' }, // left
+    { a:[ bay/2-leg/2, 0, -bay/2+leg/2], b:[ bay/2-leg/2, segmentH,  bay/2-leg/2], axis:'x' }, // right
+  ];
+
+  for (let s = 0; s < segments; s++) {
+    const y0 = s*segmentH, y1 = (s+1)*segmentH;
+    const flip = (s%2===0) ? 1 : -1;
+    for (const f of faces) {
+      const from = new THREE.Vector3(f.a[0], y0, f.a[2]);
+      const to   = new THREE.Vector3(f.b[0], y1, f.b[2]);
+      // swap ends every other segment to make “X”
+      if (flip < 0) [to.x, from.x] = [from.x, to.x], [to.z, from.z] = [from.z, to.z];
+      const mid = from.clone().add(to).multiplyScalar(0.5);
+      const dir = to.clone().sub(from);
+      const len = dir.length();
+      const quat = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0), dir.normalize());
+      const scale = new THREE.Vector3(1, len/dGeom.parameters.height, 1);
+      m.compose(mid, quat, scale);
+      diag.setMatrixAt(i++, m);
+    }
+  }
+  ring.add(diag);
+
+  // Top hat (simple service deck)
+  const deck = new THREE.Mesh(
+    new THREE.BoxGeometry(bay*1.2, brace*2, bay*1.2),
+    darkSteel
+  );
+  deck.position.set(0, segments*segmentH + brace*2, 0);
+  deck.castShadow = true; deck.receiveShadow = true;
+  ring.add(deck);
+
+  // Base plinth
+  const base = new THREE.Mesh(
+    new THREE.BoxGeometry(bay*1.6, 6, bay*1.6),
+    new THREE.MeshStandardMaterial({ color:0x252a31, metalness:.2, roughness:.9 })
+  );
+  base.position.y = -3 + baseOffset;
+  base.receiveShadow = true;
+  ring.add(base);
+
+  buildArms(segments*segmentH);
+}
+
+/* ---------- Arms ---------- */
+let chopstickGrp, qdGrp, topArmGrp;
+
+function makeTrussBeam(len = 30, depth = 4, thickness = 1.2, mat = darkSteel) {
+  const g = new THREE.Group();
+
+  // Outer rails
+  const railGeom = new THREE.BoxGeometry(len, thickness, thickness);
+  const rail1 = new THREE.Mesh(railGeom, mat);
+  const rail2 = new THREE.Mesh(railGeom, mat);
+  rail1.position.set(0,  depth/2, 0);
+  rail2.position.set(0, -depth/2, 0);
+  rail1.castShadow = rail2.castShadow = true;
+  g.add(rail1, rail2);
+
+  // Uprights
+  const uprGeom = new THREE.BoxGeometry(thickness, depth, thickness);
+  const uprCount = Math.max(2, Math.floor(len / 4));
+  for (let i=0;i<=uprCount;i++){
+    const x = -len/2 + (len/uprCount)*i;
+    const u = new THREE.Mesh(uprGeom, mat);
+    u.position.set(x, 0, 0);
+    u.castShadow = true;
+    g.add(u);
+  }
+
+  // Diagonals
+  const diagGeom = new THREE.BoxGeometry(thickness, Math.hypot(depth, len/uprCount), thickness);
+  for (let i=0;i<uprCount;i++){
+    const x0 = -len/2 + (len/uprCount)*i;
+    const x1 = -len/2 + (len/uprCount)*(i+1);
+    const midX = (x0+x1)/2;
+    const flip = (i%2===0) ? 1 : -1;
+    const yMid = 0;
+    const segLen = x1-x0;
+    const quat = new THREE.Quaternion().setFromEuler(new THREE.Euler(0,0,Math.atan2(depth*flip, segLen)));
+    const d = new THREE.Mesh(diagGeom, mat);
+    d.position.set(midX, yMid, 0);
+    d.quaternion.copy(quat);
+    d.castShadow = true;
+    g.add(d);
+  }
+  return g;
+}
+
+function buildArms(totalH) {
+  const hubY_chop = totalH * 0.33;
+  const hubY_qd   = totalH * 0.58;
+  const hubY_top  = totalH * 0.80;
+
+  /* Lower “chopsticks” (pair that opens/closes) */
+  chopstickGrp = new THREE.Group();
+  chopstickGrp.position.set(0, hubY_chop, 0);
+  tower.add(chopstickGrp);
+
+  const chopL = new THREE.Group(), chopR = new THREE.Group();
+  const chopLen = 36, fingerLen = 10;
+
+  const beamL = makeTrussBeam(chopLen, 5, 1.2, darkSteel);
+  const beamR = makeTrussBeam(chopLen, 5, 1.2, darkSteel);
+  beamL.position.x = -chopLen/2; beamR.position.x = chopLen/2;
+
+  // “Fingers”
+  const fingerGeom = new THREE.BoxGeometry(1.2, 6, 1.2);
+  const fingerMat = steel;
+  const fingerL = new THREE.Mesh(fingerGeom, fingerMat);
+  fingerL.position.set(-chopLen, 0, 0);
+  fingerL.castShadow = true;
+  fingerL.scale.y = fingerLen/6;
+
+  const fingerR = fingerL.clone(); fingerR.position.x *= -1;
+
+  chopL.add(beamL, fingerL);
+  chopR.add(beamR, fingerR);
+
+  // Hinges to open/close
+  const hingeL = new THREE.Group();
+  const hingeR = new THREE.Group();
+  hingeL.add(chopL); hingeR.add(chopR);
+  chopL.position.x =  params.chopstickOpen*-0.5;
+  chopR.position.x =  params.chopstickOpen* 0.5;
+
+  hingeL.rotation.z =  THREE.MathUtils.degToRad(params.chopstickAngle);
+  hingeR.rotation.z = -THREE.MathUtils.degToRad(params.chopstickAngle);
+
+  // Mount hinges to tower face
+  const mount = new THREE.Group();
+  mount.position.set(bay/2 + 1.0, 0, 0);
+  chopstickGrp.add(mount);
+  mount.add(hingeL, hingeR);
+
+  /* Mid QD arm (rotates + telescopes) */
+  qdGrp = new THREE.Group();
+  qdGrp.position.set(0, hubY_qd, 0);
+  tower.add(qdGrp);
+
+  const qdPivot = new THREE.Group();
+  qdPivot.position.set(bay/2 + 1.0, 0, 0);
+  qdPivot.rotation.y = THREE.MathUtils.degToRad(params.qdYaw);
+  qdGrp.add(qdPivot);
+
+  const qdOuter = makeTrussBeam(48, 6, 1.2, darkSteel);
+  qdOuter.position.x = 24;
+
+  const qdInner = makeTrussBeam(22, 5, 1.0, steel);
+  qdInner.position.x = 24 + params.qdExtend;
+
+  // rudimentary “umbilical head”
+  const head = new THREE.Mesh(new THREE.CylinderGeometry(2.5, 2.5, 2, 16), steel);
+  head.rotation.z = Math.PI/2;
+  head.position.set(24 + params.qdExtend + 12, 0, 0);
+  head.castShadow = true;
+
+  qdPivot.add(qdOuter, qdInner, head);
+
+  /* Upper stabilizer arm (rotates only) */
+  topArmGrp = new THREE.Group();
+  topArmGrp.position.set(0, hubY_top, 0);
+  tower.add(topArmGrp);
+
+  const topPivot = new THREE.Group();
+  topPivot.position.set(bay/2 + 1.0, 0, 0);
+  topPivot.rotation.y = THREE.MathUtils.degToRad(params.topYaw);
+  topArmGrp.add(topPivot);
+
+  const topArm = makeTrussBeam(38, 5, 1.1, darkSteel);
+  topArm.position.x = 19;
+  const guide = new THREE.Mesh(new THREE.BoxGeometry(3, 8, 3), steel);
+  guide.position.set(38, 0, 0);
+  guide.castShadow = true;
+  topPivot.add(topArm, guide);
+
+  // Decorative hinge blocks
+  const hingeGeom = new THREE.CylinderGeometry(2.2, 2.2, 3, 18);
+  for (const y of [hubY_chop, hubY_qd, hubY_top]) {
+    const h = new THREE.Mesh(hingeGeom, steel);
+    h.rotation.z = Math.PI/2;
+    h.position.set(bay/2+1.0, y, 0);
+    h.castShadow = true;
+    tower.add(h);
+  }
+}
+
+buildTower();
+
+/* ---------- GUI ---------- */
+const gui = new GUI({ title:'Mechzilla Controls' });
+const f1 = gui.addFolder('Tower');
+f1.add(params, 'towerHeight', 80, 200, 1).onFinishChange(buildTower);
+f1.add(params, 'segmentH', 4, 10, 1).onFinishChange(buildTower);
+f1.add(params, 'bay', 8, 20, 0.5).onFinishChange(buildTower);
+f1.add(params, 'baseOffset', -10, 20, 1).onFinishChange(buildTower);
+
+const f2 = gui.addFolder('Chopsticks');
+f2.add(params, 'chopstickOpen', 2, 30, 0.5).name('gap').onChange(v=>{
+  chopstickGrp.children[0].children[0].position.x = -v*0.5; // L
+  chopstickGrp.children[0].children[1].position.x =  v*0.5; // R
+});
+f2.add(params, 'chopstickAngle', -15, 15, 0.5).onChange(v=>{
+  const L = chopstickGrp.children[0].children[0].parent;
+  const R = chopstickGrp.children[0].children[1].parent;
+  L.rotation.z =  THREE.MathUtils.degToRad(v);
+  R.rotation.z = -THREE.MathUtils.degToRad(v);
+});
+
+const f3 = gui.addFolder('QD Arm');
+f3.add(params, 'qdYaw', -60, 10, 1).onChange(v=>{
+  qdGrp.children[0].rotation.y = THREE.MathUtils.degToRad(v);
+});
+f3.add(params, 'qdExtend', 0, 36, 0.5).onChange(v=>{
+  const pivot = qdGrp.children[0];
+  pivot.children[1].position.x = 24 + v;        // inner beam
+  pivot.children[2].position.x = 24 + v + 12;   // head
+});
+
+const f4 = gui.addFolder('Top Arm');
+f4.add(params, 'topYaw', -45, 15, 1).onChange(v=>{
+  topArmGrp.children[0].rotation.y = THREE.MathUtils.degToRad(v);
+});
+
+gui.close();
+
+/* ---------- Keyboard shortcuts ---------- */
+window.addEventListener('keydown', (e)=>{
+  switch(e.key.toLowerCase()){
+    case '1': params.chopstickOpen = Math.min(30, params.chopstickOpen + 1); gui.controllersRecursive().forEach(c=>c.updateDisplay()); break;
+    case '2': params.chopstickOpen = Math.max(2,  params.chopstickOpen - 1); gui.controllersRecursive().forEach(c=>c.updateDisplay()); break;
+    case 'q': params.qdYaw -= 1;  gui.controllersRecursive().forEach(c=>c.updateDisplay()); break;
+    case 'w': params.qdYaw += 1;  gui.controllersRecursive().forEach(c=>c.updateDisplay()); break;
+    case 'a': params.qdExtend = Math.max(0, params.qdExtend - 1); gui.controllersRecursive().forEach(c=>c.updateDisplay()); break;
+    case 's': params.qdExtend = Math.min(36, params.qdExtend + 1); gui.controllersRecursive().forEach(c=>c.updateDisplay()); break;
+    case 'z': params.topYaw -= 1; gui.controllersRecursive().forEach(c=>c.updateDisplay()); break;
+    case 'x': params.topYaw += 1; gui.controllersRecursive().forEach(c=>c.updateDisplay()); break;
+  }
+  // trigger onChange handlers manually
+  f2.controllers[0].setValue(params.chopstickOpen);
+  f3.controllers[0].setValue(params.qdYaw);
+  f3.controllers[1].setValue(params.qdExtend);
+  f4.controllers[0].setValue(params.topYaw);
+});
+
+/* ---------- Animate ---------- */
+function animate(){
+  controls.update();
+  renderer.render(scene, camera);
+  requestAnimationFrame(animate);
+}
+animate();
+
+addEventListener('resize', ()=>{
+  camera.aspect = innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+</script>
 </body>
 </html>
-
-
