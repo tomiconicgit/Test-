@@ -1,5 +1,6 @@
-// MechzillaTower.js — 30x30 base + four 4x4x60 beams
-// Applies PBR textures from /assets: albedo, normal, metallic, ao, height
+// MechzillaTower.js — 30x30 base + four 4x4x60 beams using your PBR textures
+// Uses albedo/normal/AO/height; scalar metalness (no metalnessMap) so it renders
+// correctly without an environment map on mobile.
 
 export class MechzillaTower {
   constructor({
@@ -8,59 +9,54 @@ export class MechzillaTower {
     beamSize = 4,
     beamHeight = 60,
     position = new THREE.Vector3(0, 0, 0),
-    // texture tiling controls
+    // texture tiling
     beamRepeatU = 1.0,
-    beamRepeatV = 6.0,      // more tiles vertically so it doesn't stretch
+    beamRepeatV = 6.0,
     baseRepeatU = 2.5,
-    baseRepeatV = 2.5
+    baseRepeatV = 2.5,
   } = {}) {
     this.group = new THREE.Group();
     this.group.position.copy(position);
     this.group.name = 'MechzillaTower';
 
-    // ---- Load texture set once (cached) -----------------------------------
+    // ---- Load textures (cached) -------------------------------------------
     const tex = MechzillaTower._getMetalTextures();
 
-    // ---- Materials ---------------------------------------------------------
-    const makeTexturedMetal = (repeatU = 1, repeatV = 1) => {
-      // clone the base textures so we can set different repeats per material
-      const map        = tex.map.clone();        map.repeat.set(repeatU, repeatV);
-      const normalMap  = tex.normal.clone();     normalMap.repeat.set(repeatU, repeatV);
-      const metalMap   = tex.metallic.clone();   metalMap.repeat.set(repeatU, repeatV);
-      const aoMap      = tex.ao.clone();         aoMap.repeat.set(repeatU, repeatV);
-      const dispMap    = tex.height.clone();     dispMap.repeat.set(repeatU, repeatV);
+    // Helper to build a material with independent tiling
+    const makeMetal = (repU, repV) => {
+      const map   = tex.map.clone();    map.repeat.set(repU, repV);
+      const norm  = tex.normal.clone(); norm.repeat.set(repU, repV);
+      const ao    = tex.ao.clone();     ao.repeat.set(repU, repV);
+      const disp  = tex.height.clone(); disp.repeat.set(repU, repV);
 
-      [map, normalMap, metalMap, aoMap, dispMap].forEach(t => {
+      [map, norm, ao, disp].forEach(t => {
         t.wrapS = t.wrapT = THREE.RepeatWrapping;
         t.needsUpdate = true;
       });
 
       return new THREE.MeshPhysicalMaterial({
-        // base color still matters (multiplies albedo)
-        color: 0xffffff,
+        color: 0xffffff,       // multiplied with map (keep white)
         map,
-        normalMap,
-        metalnessMap: metalMap,
-        aoMap,
-        displacementMap: dispMap,
-        // PBR tuning
-        metalness: 1.0,            // driven by metalnessMap
-        roughness: 0.45,           // can adjust to taste
+        normalMap: norm,
+        aoMap: ao,
+        displacementMap: disp,
+        displacementScale: 0.02,   // subtle; raise to 0.04 if you want more relief
         normalScale: new THREE.Vector2(0.9, 0.9),
-        displacementScale: 0.03,   // subtle height; increase if you want more relief
-        displacementBias: 0.0,
+
+        // IMPORTANT: not a full metal, so it lights without envMap
+        metalness: 0.3,
+        roughness: 0.5,
+
         clearcoat: 0.5,
         clearcoatRoughness: 0.25
       });
     };
 
-    const beamMat = makeTexturedMetal(beamRepeatU, beamRepeatV);
-    const baseMat = makeTexturedMetal(baseRepeatU, baseRepeatV);
+    const baseMat = makeMetal(baseRepeatU, baseRepeatV);
+    const beamMat = makeMetal(beamRepeatU, beamRepeatV);
 
-    // ---- Base slab ---------------------------------------------------------
-    // Add a few segments so displacement can affect the top surface a bit
+    // ---- Base slab (more segments so displacement can work) ---------------
     const baseGeo = new THREE.BoxGeometry(baseSize, baseThickness, baseSize, 4, 1, 4);
-    // aoMap needs uv2
     baseGeo.setAttribute('uv2', new THREE.BufferAttribute(baseGeo.attributes.uv.array, 2));
 
     const base = new THREE.Mesh(baseGeo, baseMat);
@@ -69,8 +65,7 @@ export class MechzillaTower {
     base.name = 'towerBase';
     this.group.add(base);
 
-    // ---- Beams -------------------------------------------------------------
-    // Extra segments along height so displacement can work
+    // ---- Beams (extra vertical segments for displacement) -----------------
     const beamGeo = new THREE.BoxGeometry(
       beamSize, beamHeight, beamSize,
       2, Math.max(20, Math.floor(beamHeight / 3)), 2
@@ -87,12 +82,13 @@ export class MechzillaTower {
     const half = baseSize / 2 - beamSize / 2;
     const y = beamHeight / 2 + baseThickness;
 
-    const b1 = makeBeam(); b1.position.set(+half, y, +half); b1.name = 'cornerBeam_1';
-    const b2 = makeBeam(); b2.position.set(-half, y, +half); b2.name = 'cornerBeam_2';
-    const b3 = makeBeam(); b3.position.set(-half, y, -half); b3.name = 'cornerBeam_3';
-    const b4 = makeBeam(); b4.position.set(+half, y, -half); b4.name = 'cornerBeam_4';
+    const b1 = makeBeam(); b1.position.set(+half, y, +half);
+    const b2 = makeBeam(); b2.position.set(-half, y, +half);
+    const b3 = makeBeam(); b3.position.set(-half, y, -half);
+    const b4 = makeBeam(); b4.position.set(+half, y, -half);
 
-    this.group.add(b1, b2, b3, b4);
+    [b1,b2,b3,b4].forEach((b,i)=> b.name = `cornerBeam_${i+1}`);
+    this.group.add(b1,b2,b3,b4);
   }
 
   addTo(scene) { scene.add(this.group); }
@@ -100,36 +96,23 @@ export class MechzillaTower {
 
   // ---------- static texture loader (cached) ----------
   static _getMetalTextures() {
-    if (this._texCache) return this._texCache;
+    if (this._cache) return this._cache;
 
     const loader = new THREE.TextureLoader();
 
-    const map       = loader.load('assets/metal_albedo.png');
-    const normal    = loader.load('assets/metal_normal.png');
-    const metallic  = loader.load('assets/metal_metallic.png');
-    const ao        = loader.load('assets/metal_ao.png');
-    const height    = loader.load('assets/metal_height.png');
+    // Paths must match your repo exactly (case-sensitive on GitHub Pages)
+    const map    = loader.load('assets/metal_albedo.png');
+    const normal = loader.load('assets/metal_normal.png');
+    const ao     = loader.load('assets/metal_ao.png');
+    const height = loader.load('assets/metal_height.png');
 
-    // Encoding: albedo is sRGB; the rest are linear
+    // Correct color spaces for r128
     map.encoding = THREE.sRGBEncoding;
-    [normal, metallic, ao, height].forEach(t => t.encoding = THREE.LinearEncoding);
+    normal.encoding = THREE.LinearEncoding;
+    ao.encoding = THREE.LinearEncoding;
+    height.encoding = THREE.LinearEncoding;
 
-    // A little anisotropy helps on mobile if supported
-    const gl = rendererFromDOM(); // helper (below) tries to grab the active renderer
-    if (gl && gl.capabilities && gl.capabilities.getMaxAnisotropy) {
-      const aniso = gl.capabilities.getMaxAnisotropy();
-      [map, normal, metallic, ao, height].forEach(t => t.anisotropy = Math.min(8, aniso));
-    }
-
-    this._texCache = { map, normal, metallic, ao, height };
-    return this._texCache;
+    this._cache = { map, normal, ao, height };
+    return this._cache;
   }
-}
-
-// Try to find a THREE.WebGLRenderer from the page so we can set anisotropy.
-// If not found, we just skip it (textures still work fine).
-function rendererFromDOM() {
-  const cvs = document.querySelector('canvas');
-  // Three attaches renderer to canvas via __webglRenderer sometimes; if not present we skip
-  return cvs && cvs.__threeRenderer ? cvs.__threeRenderer : null;
 }
