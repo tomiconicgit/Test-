@@ -1,0 +1,20 @@
+<svg width="192" height="192" viewBox="0 0 192 192" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <!-- This creates a rounded square background, common for app icons. -->
+    <rect width="192" height="192" rx="32" fill="#2C3E50"/>
+    
+    <!-- A mask is used to keep the inner design within the rounded square shape. -->
+    <mask id="mask0" mask-type="alpha" maskUnits="userSpaceOnUse" x="0" y="0" width="192" height="192">
+        <rect width="192" height="192" rx="32" fill="white"/>
+    </mask>
+    <g mask="url(#mask0)">
+        <!-- The background terrain layer. -->
+        <path d="M-20 128H212V192H-20V128Z" fill="#7F8C8D"/>
+        
+        <!-- A simple sun in the sky. -->
+        <circle cx="140" cy="70" r="24" fill="#F1C40F"/>
+        
+        <!-- A foreground terrain layer to give a sense of depth. -->
+        <path d="M-20 128L60 90L130 115L212 80V128H-20Z" fill="#95A5A6"/>
+    </g>
+</svg>
+
