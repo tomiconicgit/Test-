@@ -1,7 +1,7 @@
 // File: Camera.js
 export class CameraRig {
   constructor() {
-    // Camera
+    // --- Camera ---
     this.camera = new THREE.PerspectiveCamera(
       75,
       window.innerWidth / window.innerHeight,
@@ -9,20 +9,20 @@ export class CameraRig {
       1000
     );
 
-    // Renderer
+    // --- Renderer ---
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-    // >>> Brighter, more realistic output
-    this.renderer.outputEncoding = THREE.sRGBEncoding;          // r128
+    // Balanced output (no blown highlights)
+    this.renderer.outputEncoding = THREE.sRGBEncoding;      // three r128
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.15;
+    this.renderer.toneMappingExposure = 1.0;
 
     document.body.appendChild(this.renderer.domElement);
 
-    // Keep canvas behind UI & non-interactive so buttons/sliders work
+    // Keep canvas behind UI & non-interactive so buttons/sliders receive taps
     const cv = this.renderer.domElement;
     cv.style.position = 'fixed';
     cv.style.inset = '0';
@@ -30,7 +30,7 @@ export class CameraRig {
     cv.style.display = 'block';
     cv.style.pointerEvents = 'none';
 
-    // Look controls state
+    // Look control state
     this.touchStartX = 0;
     this.touchStartY = 0;
     this.lon = -90;
