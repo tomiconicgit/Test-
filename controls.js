@@ -57,7 +57,6 @@ export class Controls {
         
         window.addEventListener('resize', this.onResize.bind(this));
 
-        // Correctly wiring the buttons to their functions
         document.getElementById('dig-button').addEventListener('click', this.dig.bind(this));
         document.getElementById('place-button').addEventListener('click', this.place.bind(this));
         document.getElementById('jump-button').addEventListener('click', this.jump.bind(this));
@@ -80,10 +79,9 @@ export class Controls {
                 this.joystickTouchId = touch.identifier;
                 this.updateDirection(touch);
             } else if (this.lookTouchId === null) {
-                // Check if the touch is on a button
                 const targetElement = document.elementFromPoint(touch.clientX, touch.clientY);
-                if (targetElement && targetElement.closest('.action-button, #block-select')) {
-                    continue; // Don't start a look touch on a button
+                if (targetElement && targetElement.closest('.action-button, #block-select, #joystick')) {
+                    continue;
                 }
                 this.lookTouchId = touch.identifier;
                 this.lookPrev.set(touch.clientX, touch.clientY);
@@ -132,18 +130,19 @@ export class Controls {
     }
 
     isPositionValid(pos) {
+        const p = pos.clone();
         const halfWidth = this.playerWidth / 2;
         const checkPoints = [
-            [0,0,0], [0, this.playerHeight, 0], // Center column
-            [-halfWidth, 0, -halfWidth], [halfWidth, 0, -halfWidth], // Bottom corners
-            [-halfWidth, 0, halfWidth], [halfWidth, 0, halfWidth],
-            [-halfWidth, this.playerHeight, -halfWidth], [halfWidth, this.playerHeight, -halfWidth], // Top corners
-            [-halfWidth, this.playerHeight, halfWidth], [halfWidth, this.playerHeight, halfWidth]
+            [0,0,0], [0, this.playerHeight / 2, 0], [0, this.playerHeight, 0]
         ];
-        for(const p of checkPoints) {
-            if (this.world.getBlock(Math.floor(pos.x + p[0]), Math.floor(pos.y + p[1]), Math.floor(pos.z + p[2])) > 0) {
-                return false;
-            }
+        for (let x = -halfWidth; x <= halfWidth; x += this.playerWidth) {
+             for (let z = -halfWidth; z <= halfWidth; z += this.playerWidth) {
+                for (const check of checkPoints) {
+                    if (this.world.getBlock(Math.floor(p.x + x), Math.floor(p.y + check[1]), Math.floor(p.z + z)) > 0) {
+                        return false;
+                    }
+                }
+             }
         }
         return true;
     }
@@ -208,15 +207,21 @@ export class Controls {
     update(delta) {
         this.velocity.y -= this.gravity * delta;
 
-        // --- JOYSTICK FIX: Base movement on yaw (left/right look) only ---
-        const forward = new THREE.Vector3(0, 0, -1);
-        forward.applyQuaternion(this.yaw.quaternion);
+        // --- FIXED JOYSTICK LOGIC ---
+        // Get forward vector based on player's horizontal rotation (yaw)
+        const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(this.yaw.quaternion);
+        // Get right vector, perpendicular to forward
         const right = new THREE.Vector3().crossVectors(this.camera.up, forward).normalize();
         
-        const moveX = right.multiplyScalar(this.direction.x * this.moveSpeed * delta);
-        const moveZ = forward.multiplyScalar(this.direction.y * this.moveSpeed * delta); // Inverted Y-axis
-        const horizDelta = moveX.add(moveZ);
-
+        // Calculate movement based on joystick input
+        // direction.y is negative for up (forward), positive for down (backward)
+        const moveForward = forward.clone().multiplyScalar(-this.direction.y * this.moveSpeed * delta);
+        // direction.x is negative for left, positive for right
+        const moveStrafe = right.clone().multiplyScalar(this.direction.x * this.moveSpeed * delta);
+        
+        const horizDelta = moveForward.add(moveStrafe);
+        
+        // --- Collision and Movement ---
         const feetPos = this.yaw.position.clone();
         feetPos.y -= this.eyeHeight;
 
@@ -243,4 +248,5 @@ export class Controls {
         this.updatePlacementHelper();
     }
 }
+
 
