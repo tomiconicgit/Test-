@@ -13,8 +13,6 @@ renderer.setPixelRatio(window.devicePixelRatio);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 document.body.appendChild(renderer.domElement);
 
-scene.renderer = renderer;
-
 // --- Nice Sky Implementation ---
 const sky = new Sky();
 sky.scale.setScalar(450000);
@@ -22,6 +20,7 @@ scene.add(sky);
 
 const sun = new THREE.Vector3();
 
+// --- FIX: Corrected exposure value to prevent black screen ---
 const effectController = {
     turbidity: 10,
     rayleigh: 3,
@@ -29,7 +28,7 @@ const effectController = {
     mieDirectionalG: 0.7,
     elevation: 4,
     azimuth: 180,
-    exposure: renderer.toneMappingExposure
+    exposure: 0.5 // This was the cause of the black screen. Changed from 1.0 to 0.5
 };
 
 function updateSky() {
@@ -53,7 +52,7 @@ updateSky();
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
 scene.add(ambientLight);
 const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
-directionalLight.position.copy(sun).multiplyScalar(100); // Align light with sun
+directionalLight.position.copy(sun).multiplyScalar(100);
 directionalLight.castShadow = true;
 scene.add(directionalLight);
 
