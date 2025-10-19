@@ -9,10 +9,9 @@ export class Controls {
         this.pitch = new THREE.Object3D();
         this.yaw.add(this.pitch);
         this.pitch.add(this.camera);
-        this.yaw.position.set(50, 25, 50); // Start higher for new terrain
+        this.yaw.position.set(50, 5, 50); // Start position for flat world
         this.scene.add(this.yaw);
 
-        // Player physics properties
         this.velocity = new THREE.Vector3(0, 0, 0);
         this.moveSpeed = 15;
         this.lookSpeed = 2.5;
@@ -23,24 +22,21 @@ export class Controls {
         this.eyeHeight = 1.6;
         this.playerWidth = 0.5;
 
-        // Raycasting and block interaction
         this.raycaster = new THREE.Raycaster();
-        this.raycaster.far = 8.0; // Max reach distance
-        this.currentBlock = 2; // Default to Metal
+        this.raycaster.far = 8.0;
+        this.currentBlock = 2;
         this.raycastResult = null;
         this.initPlacementHelper();
 
-        // Touch controls state
         this.direction = new THREE.Vector2(0, 0);
         this.joystickTouchId = null;
         this.lookTouchId = null;
         this.lookPrev = new THREE.Vector2();
 
-        // UI Elements
         this.joystick = document.getElementById('joystick');
         this.knob = document.getElementById('knob');
         this.blockSelect = document.getElementById('block-select');
-        this.onResize(); // Initial setup for joystick position
+        this.onResize();
 
         this.addEventListeners();
     }
@@ -48,20 +44,22 @@ export class Controls {
     initPlacementHelper() {
         const placementGeo = new THREE.BoxGeometry(1.002, 1.002, 1.002);
         const placementEdges = new THREE.EdgesGeometry(placementGeo);
-        this.placementHelper = new THREE.LineSegments(placementEdges, new THREE.LineBasicMaterial({ color: 0x000000, linewidth: 2 }));
+        this.placementHelper = new THREE.LineSegments(placementEdges, new THREE.LineBasicMaterial({ color: 0xffffff, linewidth: 2, transparent: true, opacity: 0.7 }));
         this.placementHelper.visible = false;
         this.scene.add(this.placementHelper);
     }
     
     addEventListeners() {
-        document.addEventListener('touchstart', this.onTouchStart.bind(this), { passive: false });
-        document.addEventListener('touchmove', this.onTouchMove.bind(this), { passive: false });
-        document.addEventListener('touchend', this.onTouchEnd.bind(this));
+        const canvas = this.scene.renderer ? this.scene.renderer.domElement : document.querySelector('canvas');
+        canvas.addEventListener('touchstart', this.onTouchStart.bind(this), { passive: false });
+        canvas.addEventListener('touchmove', this.onTouchMove.bind(this), { passive: false });
+        canvas.addEventListener('touchend', this.onTouchEnd.bind(this));
         
         window.addEventListener('resize', this.onResize.bind(this));
 
-        document.getElementById('place-button').addEventListener('click', this.dig.bind(this));
-        document.getElementById('dig-button').addEventListener('click', this.place.bind(this));
+        // Correctly wiring the buttons to their functions
+        document.getElementById('dig-button').addEventListener('click', this.dig.bind(this));
+        document.getElementById('place-button').addEventListener('click', this.place.bind(this));
         document.getElementById('jump-button').addEventListener('click', this.jump.bind(this));
         
         this.blockSelect.addEventListener('change', () => {
@@ -82,6 +80,11 @@ export class Controls {
                 this.joystickTouchId = touch.identifier;
                 this.updateDirection(touch);
             } else if (this.lookTouchId === null) {
+                // Check if the touch is on a button
+                const targetElement = document.elementFromPoint(touch.clientX, touch.clientY);
+                if (targetElement && targetElement.closest('.action-button, #block-select')) {
+                    continue; // Don't start a look touch on a button
+                }
                 this.lookTouchId = touch.identifier;
                 this.lookPrev.set(touch.clientX, touch.clientY);
             }
@@ -130,14 +133,17 @@ export class Controls {
 
     isPositionValid(pos) {
         const halfWidth = this.playerWidth / 2;
-        for (let y = 0; y < this.playerHeight; y += 0.5) {
-             for (let x = -halfWidth; x <= halfWidth; x += halfWidth) {
-                 for (let z = -halfWidth; z <= halfWidth; z += halfWidth) {
-                    if (this.world.getBlock(Math.floor(pos.x + x), Math.floor(pos.y + y), Math.floor(pos.z + z)) > 0) {
-                        return false;
-                    }
-                 }
-             }
+        const checkPoints = [
+            [0,0,0], [0, this.playerHeight, 0], // Center column
+            [-halfWidth, 0, -halfWidth], [halfWidth, 0, -halfWidth], // Bottom corners
+            [-halfWidth, 0, halfWidth], [halfWidth, 0, halfWidth],
+            [-halfWidth, this.playerHeight, -halfWidth], [halfWidth, this.playerHeight, -halfWidth], // Top corners
+            [-halfWidth, this.playerHeight, halfWidth], [halfWidth, this.playerHeight, halfWidth]
+        ];
+        for(const p of checkPoints) {
+            if (this.world.getBlock(Math.floor(pos.x + p[0]), Math.floor(pos.y + p[1]), Math.floor(pos.z + p[2])) > 0) {
+                return false;
+            }
         }
         return true;
     }
@@ -200,35 +206,27 @@ export class Controls {
     }
 
     update(delta) {
-        // Apply gravity
         this.velocity.y -= this.gravity * delta;
 
-        // Get forward and right vectors
-        const forward = new THREE.Vector3();
-        this.pitch.getWorldDirection(forward);
-        forward.y = 0;
-        forward.normalize();
+        // --- JOYSTICK FIX: Base movement on yaw (left/right look) only ---
+        const forward = new THREE.Vector3(0, 0, -1);
+        forward.applyQuaternion(this.yaw.quaternion);
         const right = new THREE.Vector3().crossVectors(this.camera.up, forward).normalize();
         
-        // Calculate horizontal movement
         const moveX = right.multiplyScalar(this.direction.x * this.moveSpeed * delta);
-        const moveZ = forward.multiplyScalar(-this.direction.y * this.moveSpeed * delta);
+        const moveZ = forward.multiplyScalar(this.direction.y * this.moveSpeed * delta); // Inverted Y-axis
         const horizDelta = moveX.add(moveZ);
 
-        // Get player's feet position
         const feetPos = this.yaw.position.clone();
         feetPos.y -= this.eyeHeight;
 
-        // --- Collision and Movement ---
-        // Move X and Z separately for wall sliding
         this.tryMove(new THREE.Vector3(horizDelta.x, 0, 0), feetPos);
         this.tryMove(new THREE.Vector3(0, 0, horizDelta.z), feetPos);
 
-        // Vertical movement
         const vertDelta = new THREE.Vector3(0, this.velocity.y * delta, 0);
         const movedVertically = this.tryMove(vertDelta, feetPos);
 
-        if (this.velocity.y < 0 && !movedVertically) {
+        if (this.velocity.y <= 0 && !movedVertically) {
             this.velocity.y = 0;
             this.onGround = true;
         } else {
@@ -239,11 +237,10 @@ export class Controls {
             this.velocity.y = 0;
         }
         
-        // Update player position
         this.yaw.position.copy(feetPos);
         this.yaw.position.y += this.eyeHeight;
 
-        // Update block placement helper
         this.updatePlacementHelper();
     }
 }
+
