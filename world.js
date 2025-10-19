@@ -105,7 +105,6 @@ export class World {
     }
 
     generate() {
-        // Generate a flat plane at y=0
         for (let x = 0; x < this.sizeX; x++) {
             for (let z = 0; z < this.sizeZ; z++) {
                 this.setBlock(x, 0, z, 1);
@@ -182,7 +181,15 @@ export class World {
                 geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
                 geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
                 geometry.setIndex(indices);
-                const mesh = new THREE.Mesh(geometry, this.materials[type]);
+                
+                const material = this.materials[type];
+                // --- FIX FOR RENDERING GLITCH ---
+                // Compute tangents if the material uses a normal map.
+                if (material.normalMap) {
+                    geometry.computeTangents();
+                }
+
+                const mesh = new THREE.Mesh(geometry, material);
                 this.scene.add(mesh);
                 this.blockMeshes.push(mesh);
                 chunk.meshes.push(mesh);
@@ -190,4 +197,5 @@ export class World {
         }
     }
 }
+
 
