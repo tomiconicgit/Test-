@@ -1,5 +1,5 @@
-// MechzillaTower.js — fresh base + 4 detailed beams (contrast materials)
-// Base: 30x30 slab; Beams: 4x4 cross-section, 60 high with recessed panels
+// MechzillaTower.js — 30x30 base + four 4x4x60 corner beams
+// Upgraded metal (physical material + clearcoat) and *real recessed* indent panels
 
 export class MechzillaTower {
   constructor({
@@ -13,19 +13,39 @@ export class MechzillaTower {
     this.group.position.copy(position);
     this.group.name = 'MechzillaTower';
 
-    // Painted steel — takes diffuse light (works without env map)
-    const shellMat = new THREE.MeshStandardMaterial({
-      color: 0x6e7a86,   // darker steel grey for contrast
-      metalness: 0.2,
-      roughness: 0.6
-    });
-    const panelMat = new THREE.MeshStandardMaterial({
-      color: 0x5f6975,   // slightly darker recess
-      metalness: 0.2,
-      roughness: 0.65
+    // --- Materials -----------------------------------------------------------
+    // Richer "painted steel" using Physical material so highlights look crisp.
+    const shellMat = new THREE.MeshPhysicalMaterial({
+      color: 0x6e7a86,
+      metalness: 0.55,          // more metallic than before
+      roughness: 0.35,          // still a brushed/painted look
+      clearcoat: 0.7,           // thin glossy coat
+      clearcoatRoughness: 0.15,
+      reflectivity: 0.5         // (ignored by Standard, used by Physical)
     });
 
-    // --- Base slab (30 x 30)
+    // The recessed panel is a touch darker and more matte
+    const panelMat = new THREE.MeshPhysicalMaterial({
+      color: 0x505963,
+      metalness: 0.45,
+      roughness: 0.55,
+      clearcoat: 0.4,
+      clearcoatRoughness: 0.25,
+      polygonOffset: true,           // avoid any z-fighting shimmer
+      polygonOffsetFactor: 1,
+      polygonOffsetUnits: 1
+    });
+
+    // A small raised frame around each panel (to sell the recess)
+    const frameMat = new THREE.MeshPhysicalMaterial({
+      color: 0x64707b,
+      metalness: 0.5,
+      roughness: 0.4,
+      clearcoat: 0.6,
+      clearcoatRoughness: 0.18
+    });
+
+    // --- Base slab -----------------------------------------------------------
     const base = new THREE.Mesh(
       new THREE.BoxGeometry(baseSize, baseThickness, baseSize),
       shellMat
@@ -35,44 +55,126 @@ export class MechzillaTower {
     base.name = 'towerBase';
     this.group.add(base);
 
-    // --- Four detailed beams (4x4x60) on corners
+    // --- Four detailed beams -------------------------------------------------
     const half = baseSize / 2 - beamSize / 2;
     const beamY = beamHeight / 2 + baseThickness;
-    const beam = this._makeDetailedBeam(beamSize, beamHeight, shellMat, panelMat);
 
-    const b1 = beam.clone(); b1.position.set(+half, beamY, +half); b1.name = 'cornerBeam_1';
-    const b2 = beam.clone(); b2.position.set(-half, beamY, +half); b2.name = 'cornerBeam_2';
-    const b3 = beam.clone(); b3.position.set(-half, beamY, -half); b3.name = 'cornerBeam_3';
-    const b4 = beam.clone(); b4.position.set(+half, beamY, -half); b4.name = 'cornerBeam_4';
+    const protoBeam = this._makeDetailedBeam(beamSize, beamHeight, shellMat, panelMat, frameMat);
+
+    const b1 = protoBeam.clone(); b1.position.set(+half, beamY, +half); b1.name = 'cornerBeam_1';
+    const b2 = protoBeam.clone(); b2.position.set(-half, beamY, +half); b2.name = 'cornerBeam_2';
+    const b3 = protoBeam.clone(); b3.position.set(-half, beamY, -half); b3.name = 'cornerBeam_3';
+    const b4 = protoBeam.clone(); b4.position.set(+half, beamY, -half); b4.name = 'cornerBeam_4';
     this.group.add(b1, b2, b3, b4);
   }
 
-  _makeDetailedBeam(size, height, shellMat, panelMat) {
+  /**
+   * Creates a 4x4xH column with a *real* recessed panel & a raised frame on each face.
+   * We do this with geometry (no CSG): a big shell box, plus inner panel quads pushed inward,
+   * and four thin frame strips per face that sit proud of the panel.
+   */
+  _makeDetailedBeam(size, height, shellMat, panelMat, frameMat) {
     const g = new THREE.Group();
 
-    // Outer column
+    // 1) Outer shell
     const shell = new THREE.Mesh(new THREE.BoxGeometry(size, height, size), shellMat);
-    shell.castShadow = true; shell.receiveShadow = true; g.add(shell);
+    shell.castShadow = true;
+    shell.receiveShadow = true;
+    g.add(shell);
 
-    // Recessed indent panels (all faces)
-    const inset = Math.max(0.16, size * 0.12);
-    const thickness = 0.05;
-    const fudge = 0.02; // avoid z-fighting
-    const h = height - 0.8;           // leave top/bottom rims
-    const w = size - inset * 2;
+    // 2) Recessed panel parameters
+    const edgeInset = Math.max(0.18, size * 0.14); // margin to edges
+    const recessDepth = Math.max(0.25, size * 0.08); // how far inward the panel sits
+    const panelBorder = Math.max(0.14, size * 0.09); // width of the raised frame strips
+    const panelThickness = 0.04;                     // very thin panel "sheet"
+    const h = height - 0.9;                          // leave top/bottom rims
+    const w = size - edgeInset * 2;
 
-    const px = new THREE.Mesh(new THREE.BoxGeometry(thickness, h, w), panelMat);
-    px.position.set(size/2 - thickness/2 - fudge, 0, 0);
-    const nx = px.clone(); nx.position.x *= -1;
+    // helper builds one face (direction: +X/-X/+Z/-Z)
+    const addFace = (axis) => {
+      const face = new THREE.Group();
 
-    const pz = new THREE.Mesh(new THREE.BoxGeometry(w, h, thickness), panelMat);
-    pz.position.set(0, 0, size/2 - thickness/2 - fudge);
-    const nz = pz.clone(); nz.position.z *= -1;
+      if (axis === 'px' || axis === 'nx') {
+        // Panel rectangle recessed along X
+        const panel = new THREE.Mesh(
+          new THREE.BoxGeometry(panelThickness, h, w),
+          panelMat
+        );
+        const sign = axis === 'px' ? +1 : -1;
+        panel.position.set(
+          (size / 2 - recessDepth) * sign,  // push inward from shell surface
+          0,
+          0
+        );
+        panel.castShadow = true; panel.receiveShadow = true;
+        face.add(panel);
 
-    [px, nx, pz, nz].forEach(m => { m.castShadow = m.receiveShadow = true; g.add(m); });
+        // Raised frame: 4 strips around the panel, sitting slightly forward
+        const frameDepth = panelThickness + 0.03;
+        const stripLong = new THREE.BoxGeometry(frameDepth, h, panelBorder);
+        const stripTall = new THREE.BoxGeometry(frameDepth, panelBorder, w);
+
+        const sTop = new THREE.Mesh(stripTall, frameMat);
+        const sBot = sTop.clone();
+        const sLft = new THREE.Mesh(stripLong, frameMat);
+        const sRgt = sLft.clone();
+
+        sTop.position.set(panel.position.x, +h/2 - panelBorder/2, 0);
+        sBot.position.set(panel.position.x, -h/2 + panelBorder/2, 0);
+        sLft.position.set(panel.position.x, 0, -w/2 + panelBorder/2);
+        sRgt.position.set(panel.position.x, 0, +w/2 - panelBorder/2);
+
+        [sTop, sBot, sLft, sRgt].forEach(s => { s.castShadow = s.receiveShadow = true; face.add(s); });
+
+        // Move the whole face to the correct X side so it sits on the shell
+        face.position.x = (size / 2 - panelThickness / 2) * sign;
+      } else {
+        // Panel rectangle recessed along Z
+        const panel = new THREE.Mesh(
+          new THREE.BoxGeometry(w, h, panelThickness),
+          panelMat
+        );
+        const sign = axis === 'pz' ? +1 : -1;
+        panel.position.set(
+          0,
+          0,
+          (size / 2 - recessDepth) * sign
+        );
+        panel.castShadow = true; panel.receiveShadow = true;
+        face.add(panel);
+
+        // Raised frame strips
+        const frameDepth = panelThickness + 0.03;
+        const stripLong = new THREE.BoxGeometry(panelBorder, h, frameDepth);
+        const stripTall = new THREE.BoxGeometry(w, panelBorder, frameDepth);
+
+        const sTop = new THREE.Mesh(stripTall, frameMat);
+        const sBot = sTop.clone();
+        const sLft = new THREE.Mesh(stripLong, frameMat);
+        const sRgt = sLft.clone();
+
+        sTop.position.set(0, +h/2 - panelBorder/2, panel.position.z);
+        sBot.position.set(0, -h/2 + panelBorder/2, panel.position.z);
+        sLft.position.set(-w/2 + panelBorder/2, 0, panel.position.z);
+        sRgt.position.set(+w/2 - panelBorder/2, 0, panel.position.z);
+
+        [sTop, sBot, sLft, sRgt].forEach(s => { s.castShadow = s.receiveShadow = true; face.add(s); });
+
+        // Move the whole face to the correct Z side so it sits on the shell
+        face.position.z = (size / 2 - panelThickness / 2) * sign;
+      }
+
+      g.add(face);
+    };
+
+    addFace('px'); // +X
+    addFace('nx'); // -X
+    addFace('pz'); // +Z
+    addFace('nz'); // -Z
+
     return g;
   }
 
   addTo(scene) { scene.add(this.group); }
-  update() {} // placeholder for future mechanics
+  update() {}
 }
