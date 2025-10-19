@@ -1,5 +1,5 @@
-// MechzillaTower.js — base 30x30 + four 4x4x60 beams with INTEGRATED indents
-// Indents are part of the beam via a procedural bump map (wraps around edges)
+// MechzillaTower.js — 30x30 base + four 4x4x60 beams
+// Applies PBR textures from /assets: albedo, normal, metallic, ao, height
 
 export class MechzillaTower {
   constructor({
@@ -7,66 +7,75 @@ export class MechzillaTower {
     baseThickness = 1,
     beamSize = 4,
     beamHeight = 60,
-    position = new THREE.Vector3(0, 0, 0)
+    position = new THREE.Vector3(0, 0, 0),
+    // texture tiling controls
+    beamRepeatU = 1.0,
+    beamRepeatV = 6.0,      // more tiles vertically so it doesn't stretch
+    baseRepeatU = 2.5,
+    baseRepeatV = 2.5
   } = {}) {
     this.group = new THREE.Group();
     this.group.position.copy(position);
     this.group.name = 'MechzillaTower';
 
-    // === Materials ===========================================================
-    // Painted/brushed steel with clearcoat for crisp highlights
-    const beamMat = new THREE.MeshPhysicalMaterial({
-      color: 0x6e7a86,
-      metalness: 0.55,
-      roughness: 0.38,
-      clearcoat: 0.65,
-      clearcoatRoughness: 0.18
-    });
+    // ---- Load texture set once (cached) -----------------------------------
+    const tex = MechzillaTower._getMetalTextures();
 
-    // Add an embossed recessed panel to the beam as part of the surface
-    const { bump, bumpScale } = this._makeIndentBumpTexture({
-      size: 1024,          // texture resolution
-      border: 0.18,        // border thickness (fraction of face)
-      bevel: 0.08,         // rounded border size (fraction)
-      depth: 0.8           // visual depth strength 0..1
-    });
-    beamMat.bumpMap = bump;
-    beamMat.bumpScale = bumpScale;
-    beamMat.needsUpdate = true;
+    // ---- Materials ---------------------------------------------------------
+    const makeTexturedMetal = (repeatU = 1, repeatV = 1) => {
+      // clone the base textures so we can set different repeats per material
+      const map        = tex.map.clone();        map.repeat.set(repeatU, repeatV);
+      const normalMap  = tex.normal.clone();     normalMap.repeat.set(repeatU, repeatV);
+      const metalMap   = tex.metallic.clone();   metalMap.repeat.set(repeatU, repeatV);
+      const aoMap      = tex.ao.clone();         aoMap.repeat.set(repeatU, repeatV);
+      const dispMap    = tex.height.clone();     dispMap.repeat.set(repeatU, repeatV);
 
-    // Slightly rougher base so it reads differently from columns
-    const baseMat = new THREE.MeshPhysicalMaterial({
-      color: 0x5d666f,
-      metalness: 0.35,
-      roughness: 0.6,
-      clearcoat: 0.3,
-      clearcoatRoughness: 0.4
-    });
+      [map, normalMap, metalMap, aoMap, dispMap].forEach(t => {
+        t.wrapS = t.wrapT = THREE.RepeatWrapping;
+        t.needsUpdate = true;
+      });
 
-    // === Base slab ===========================================================
-    const base = new THREE.Mesh(
-      new THREE.BoxGeometry(baseSize, baseThickness, baseSize),
-      baseMat
-    );
+      return new THREE.MeshPhysicalMaterial({
+        // base color still matters (multiplies albedo)
+        color: 0xffffff,
+        map,
+        normalMap,
+        metalnessMap: metalMap,
+        aoMap,
+        displacementMap: dispMap,
+        // PBR tuning
+        metalness: 1.0,            // driven by metalnessMap
+        roughness: 0.45,           // can adjust to taste
+        normalScale: new THREE.Vector2(0.9, 0.9),
+        displacementScale: 0.03,   // subtle height; increase if you want more relief
+        displacementBias: 0.0,
+        clearcoat: 0.5,
+        clearcoatRoughness: 0.25
+      });
+    };
+
+    const beamMat = makeTexturedMetal(beamRepeatU, beamRepeatV);
+    const baseMat = makeTexturedMetal(baseRepeatU, baseRepeatV);
+
+    // ---- Base slab ---------------------------------------------------------
+    // Add a few segments so displacement can affect the top surface a bit
+    const baseGeo = new THREE.BoxGeometry(baseSize, baseThickness, baseSize, 4, 1, 4);
+    // aoMap needs uv2
+    baseGeo.setAttribute('uv2', new THREE.BufferAttribute(baseGeo.attributes.uv.array, 2));
+
+    const base = new THREE.Mesh(baseGeo, baseMat);
     base.position.y = baseThickness / 2;
     base.receiveShadow = true;
     base.name = 'towerBase';
     this.group.add(base);
 
-    // === Four beams ==========================================================
-    const half = baseSize / 2 - beamSize / 2;
-    const y = beamHeight / 2 + baseThickness;
-
-    const beamGeo = new THREE.BoxGeometry(beamSize, beamHeight, beamSize);
-    // Increase UV tiling a bit so the indent detail is sharp on tall columns
-    // BoxGeometry already has UVs; we just scale them to keep the panel ratio nice.
-    const uv = beamGeo.attributes.uv;
-    for (let i = 0; i < uv.count; i++) {
-      // Slightly stretch along height so border looks proportionate
-      const u = uv.getX(i), v = uv.getY(i);
-      uv.setXY(i, u, v * 1.2);
-    }
-    uv.needsUpdate = true;
+    // ---- Beams -------------------------------------------------------------
+    // Extra segments along height so displacement can work
+    const beamGeo = new THREE.BoxGeometry(
+      beamSize, beamHeight, beamSize,
+      2, Math.max(20, Math.floor(beamHeight / 3)), 2
+    );
+    beamGeo.setAttribute('uv2', new THREE.BufferAttribute(beamGeo.attributes.uv.array, 2));
 
     const makeBeam = () => {
       const m = new THREE.Mesh(beamGeo.clone(), beamMat);
@@ -75,60 +84,52 @@ export class MechzillaTower {
       return m;
     };
 
+    const half = baseSize / 2 - beamSize / 2;
+    const y = beamHeight / 2 + baseThickness;
+
     const b1 = makeBeam(); b1.position.set(+half, y, +half); b1.name = 'cornerBeam_1';
     const b2 = makeBeam(); b2.position.set(-half, y, +half); b2.name = 'cornerBeam_2';
     const b3 = makeBeam(); b3.position.set(-half, y, -half); b3.name = 'cornerBeam_3';
     const b4 = makeBeam(); b4.position.set(+half, y, -half); b4.name = 'cornerBeam_4';
+
     this.group.add(b1, b2, b3, b4);
-  }
-
-  /**
-   * Creates a procedural bump texture that looks like:
-   *   [outer flat] -> [rounded border] -> [recessed center panel]
-   * It’s seamless per face and works with BoxGeometry UVs, so indents
-   * are visually part of the beam and wrap around edges correctly.
-   */
-  _makeIndentBumpTexture({ size = 1024, border = 0.18, bevel = 0.08, depth = 0.8 } = {}) {
-    const canvas = document.createElement('canvas');
-    canvas.width = canvas.height = size;
-    const ctx = canvas.getContext('2d');
-
-    // Background = height 0 (outer face)
-    ctx.fillStyle = '#808080'; // mid gray = neutral height in bump maps
-    ctx.fillRect(0, 0, size, size);
-
-    // Compute panel rect
-    const b = Math.max(0, Math.min(0.45, border));   // clamp
-    const pad = Math.floor(size * b);
-    const inner = size - pad * 2;
-
-    // Build a radial gradient “bevel” that slopes down into the recess
-    const bevelPx = Math.floor(size * Math.max(0.02, Math.min(0.2, bevel)));
-    const recess = Math.floor((depth * 128)); // darker = lower
-
-    // Draw inner recessed plate (darker than mid gray)
-    ctx.fillStyle = `rgb(${128 - recess}, ${128 - recess}, ${128 - recess})`;
-    ctx.fillRect(pad + bevelPx, pad + bevelPx, inner - 2 * bevelPx, inner - 2 * bevelPx);
-
-    // Draw the rounded border by layering several alpha strokes
-    for (let i = 0; i < bevelPx; i++) {
-      const t = i / (bevelPx - 1 || 1);
-      const shade = Math.round(128 - recess * (1 - t)); // goes from dark near center to mid gray
-      ctx.strokeStyle = `rgba(${shade}, ${shade}, ${shade}, 1)`;
-      ctx.lineWidth = 2;
-      ctx.strokeRect(pad + i + 1, pad + i + 1, inner - 2 * i - 2, inner - 2 * i - 2);
-    }
-
-    const bumpTex = new THREE.CanvasTexture(canvas);
-    bumpTex.wrapS = bumpTex.wrapT = THREE.RepeatWrapping;
-    bumpTex.needsUpdate = true;
-
-    // Negative scale pushes the center "in"
-    const bumpScale = -0.06; // tune depth on device
-
-    return { bump: bumpTex, bumpScale };
   }
 
   addTo(scene) { scene.add(this.group); }
   update() {}
+
+  // ---------- static texture loader (cached) ----------
+  static _getMetalTextures() {
+    if (this._texCache) return this._texCache;
+
+    const loader = new THREE.TextureLoader();
+
+    const map       = loader.load('assets/metal_albedo.png');
+    const normal    = loader.load('assets/metal_normal.png');
+    const metallic  = loader.load('assets/metal_metallic.png');
+    const ao        = loader.load('assets/metal_ao.png');
+    const height    = loader.load('assets/metal_height.png');
+
+    // Encoding: albedo is sRGB; the rest are linear
+    map.encoding = THREE.sRGBEncoding;
+    [normal, metallic, ao, height].forEach(t => t.encoding = THREE.LinearEncoding);
+
+    // A little anisotropy helps on mobile if supported
+    const gl = rendererFromDOM(); // helper (below) tries to grab the active renderer
+    if (gl && gl.capabilities && gl.capabilities.getMaxAnisotropy) {
+      const aniso = gl.capabilities.getMaxAnisotropy();
+      [map, normal, metallic, ao, height].forEach(t => t.anisotropy = Math.min(8, aniso));
+    }
+
+    this._texCache = { map, normal, metallic, ao, height };
+    return this._texCache;
+  }
+}
+
+// Try to find a THREE.WebGLRenderer from the page so we can set anisotropy.
+// If not found, we just skip it (textures still work fine).
+function rendererFromDOM() {
+  const cvs = document.querySelector('canvas');
+  // Three attaches renderer to canvas via __webglRenderer sometimes; if not present we skip
+  return cvs && cvs.__threeRenderer ? cvs.__threeRenderer : null;
 }
