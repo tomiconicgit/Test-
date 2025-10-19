@@ -9,7 +9,7 @@ export class Controls {
         this.pitch = new THREE.Object3D();
         this.yaw.add(this.pitch);
         this.pitch.add(this.camera);
-        this.yaw.position.set(50, 5, 50); // Start position for flat world
+        this.yaw.position.set(50, 5, 50);
         this.scene.add(this.yaw);
 
         this.velocity = new THREE.Vector3(0, 0, 0);
@@ -50,10 +50,11 @@ export class Controls {
     }
     
     addEventListeners() {
-        const canvas = this.scene.renderer ? this.scene.renderer.domElement : document.querySelector('canvas');
-        canvas.addEventListener('touchstart', this.onTouchStart.bind(this), { passive: false });
-        canvas.addEventListener('touchmove', this.onTouchMove.bind(this), { passive: false });
-        canvas.addEventListener('touchend', this.onTouchEnd.bind(this));
+        // Use the body for touch listeners to catch touches anywhere on screen
+        document.body.addEventListener('touchstart', this.onTouchStart.bind(this), { passive: false });
+        document.body.addEventListener('touchmove', this.onTouchMove.bind(this), { passive: false });
+        document.body.addEventListener('touchend', this.onTouchEnd.bind(this));
+        document.body.addEventListener('touchcancel', this.onTouchEnd.bind(this));
         
         window.addEventListener('resize', this.onResize.bind(this));
 
@@ -75,7 +76,12 @@ export class Controls {
     onTouchStart(e) {
         e.preventDefault();
         for (const touch of e.changedTouches) {
-            if (this.joystickTouchId === null && touch.clientX < window.innerWidth / 3) {
+            const isOverJoystick = Math.sqrt(
+                (touch.clientX - this.center.x) ** 2 + 
+                (touch.clientY - this.center.y) ** 2
+            ) < this.radius * 1.5;
+
+            if (this.joystickTouchId === null && isOverJoystick) {
                 this.joystickTouchId = touch.identifier;
                 this.updateDirection(touch);
             } else if (this.lookTouchId === null) {
@@ -132,15 +138,11 @@ export class Controls {
     isPositionValid(pos) {
         const p = pos.clone();
         const halfWidth = this.playerWidth / 2;
-        const checkPoints = [
-            [0,0,0], [0, this.playerHeight / 2, 0], [0, this.playerHeight, 0]
-        ];
+        const checkPoints = [ [0,0,0], [0, this.playerHeight / 2, 0], [0, this.playerHeight, 0] ];
         for (let x = -halfWidth; x <= halfWidth; x += this.playerWidth) {
              for (let z = -halfWidth; z <= halfWidth; z += this.playerWidth) {
                 for (const check of checkPoints) {
-                    if (this.world.getBlock(Math.floor(p.x + x), Math.floor(p.y + check[1]), Math.floor(p.z + z)) > 0) {
-                        return false;
-                    }
+                    if (this.world.getBlock(Math.floor(p.x + x), Math.floor(p.y + check[1]), Math.floor(p.z + z)) > 0) return false;
                 }
              }
         }
@@ -148,27 +150,21 @@ export class Controls {
     }
 
     tryMove(delta, feetPos) {
-        if (!this.isPositionValid(feetPos.clone().add(delta))) {
-            return false;
-        }
+        if (!this.isPositionValid(feetPos.clone().add(delta))) return false;
         feetPos.add(delta);
         return true;
     }
 
     jump() {
-        if (this.onGround) {
-            this.velocity.y = this.jumpSpeed;
-        }
+        if (this.onGround) this.velocity.y = this.jumpSpeed;
     }
 
     place() {
         if (this.raycastResult) {
             const { point, face } = this.raycastResult;
             const placePos = point.clone().add(face.normal.clone().multiplyScalar(0.5)).floor();
-            
             const playerFeet = this.yaw.position.clone().sub(new THREE.Vector3(0, this.eyeHeight, 0)).floor();
             const playerHead = playerFeet.clone().add(new THREE.Vector3(0, 1, 0));
-
             if (!placePos.equals(playerFeet) && !placePos.equals(playerHead)) {
                 if (this.world.getBlock(placePos.x, placePos.y, placePos.z) === 0) {
                     this.world.setBlock(placePos.x, placePos.y, placePos.z, this.currentBlock);
@@ -207,21 +203,15 @@ export class Controls {
     update(delta) {
         this.velocity.y -= this.gravity * delta;
 
-        // --- FIXED JOYSTICK LOGIC ---
-        // Get forward vector based on player's horizontal rotation (yaw)
         const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(this.yaw.quaternion);
-        // Get right vector, perpendicular to forward
-        const right = new THREE.Vector3().crossVectors(this.camera.up, forward).normalize();
+        // --- JOYSTICK FIX: Changed cross product order to get correct 'right' vector ---
+        const right = new THREE.Vector3().crossVectors(forward, this.camera.up).normalize();
         
-        // Calculate movement based on joystick input
-        // direction.y is negative for up (forward), positive for down (backward)
         const moveForward = forward.clone().multiplyScalar(-this.direction.y * this.moveSpeed * delta);
-        // direction.x is negative for left, positive for right
         const moveStrafe = right.clone().multiplyScalar(this.direction.x * this.moveSpeed * delta);
         
         const horizDelta = moveForward.add(moveStrafe);
         
-        // --- Collision and Movement ---
         const feetPos = this.yaw.position.clone();
         feetPos.y -= this.eyeHeight;
 
