@@ -15,10 +15,11 @@ export class CameraRig {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-    // Balanced output (no blown highlights)
+    // Balanced output (headroom; no blowouts)
     this.renderer.outputEncoding = THREE.sRGBEncoding;      // three r128
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.0;
+    this.renderer.toneMappingExposure = 0.9;                // ↓ a touch darker
+    this.renderer.physicallyCorrectLights = true;
 
     document.body.appendChild(this.renderer.domElement);
 
