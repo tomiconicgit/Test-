@@ -22,29 +22,14 @@ class Game {
       document.getElementById('joystick-handle')
     );
 
-    // === Mechzilla (15×15 mast, segmented solid-beam chopsticks)
+    // === Fresh Mechzilla base (30x30) + four 4x4x40 corner beams
     this.tower = new MechzillaTower({
-      height: 75,
-      baseSize: 15,        // <- per your request
-      // You can tweak these later without touching Main:
-      // seg1:10, seg2:12, seg3:10, yaw1:THREE.MathUtils.degToRad(22), yaw3:THREE.MathUtils.degToRad(-18)
+      baseSize: 30,
+      baseThickness: 1,
+      beamSize: 4,
+      beamHeight: 40
     });
-    this.scene.add(this.tower.group);
-
-    // === UI wiring
-    const btn = document.getElementById('toggle-arms');
-    const slider = document.getElementById('arm-height');
-    if (btn) btn.addEventListener('click', () => this.tower.toggle());
-    if (slider) {
-      // keep slider within tower travel
-      const maxY = Math.max(20, this.tower.params.height - 5);
-      slider.min = '10';
-      slider.max = String(maxY);
-      if (!slider.value) slider.value = String(Math.round(maxY * 0.55));
-      slider.addEventListener('input', (e) => this.tower.setCatcherHeight(Number(e.target.value)));
-      // set starting carriage height from slider
-      this.tower.setCatcherHeight(Number(slider.value));
-    }
+    this.tower.addTo(this.scene);
 
     this.clock = new THREE.Clock();
     this.animate = this.animate.bind(this);
@@ -56,11 +41,11 @@ class Game {
     const skydome = createSkydome(); this.scene.add(skydome);
     setupLighting(this.scene);
 
-    // camera start aimed at tower
+    // Camera start
     this.scene.add(this.cameraRig.camera);
-    this.cameraRig.camera.position.set(12, this.playerHeight + 2, 24);
-    this.cameraRig.lon = -135;
-    this.cameraRig.lat = -4;
+    this.cameraRig.camera.position.set(42, this.playerHeight + 6, 42);
+    this.cameraRig.lon = -135; // look toward origin (tower sits at 0,0,0)
+    this.cameraRig.lat = -6;
   }
 
   handleControls(deltaTime) {
@@ -83,13 +68,17 @@ class Game {
       this.cameraRig.camera.position.add(move);
     }
 
-    // Stick to ground
+    // Keep camera at terrain height
     const terrain = this.scene.getObjectByName("terrain");
     if (terrain) {
-      const rayOrigin = new THREE.Vector3(this.cameraRig.camera.position.x, 50, this.cameraRig.camera.position.z);
+      const rayOrigin = new THREE.Vector3(
+        this.cameraRig.camera.position.x, 50, this.cameraRig.camera.position.z
+      );
       this.raycaster.set(rayOrigin, new THREE.Vector3(0, -1, 0));
       const hits = this.raycaster.intersectObject(terrain);
-      if (hits.length > 0) this.cameraRig.camera.position.y = hits[0].point.y + this.playerHeight;
+      if (hits.length > 0) {
+        this.cameraRig.camera.position.y = hits[0].point.y + this.playerHeight;
+      }
     }
   }
 
@@ -100,16 +89,19 @@ class Game {
     this.handleControls(dt);
     this.cameraRig.update();
 
-    if (this.tower) this.tower.update(dt);
+    // Nothing animated on the fresh tower yet, but keep hook for future
+    if (this.tower && this.tower.update) this.tower.update(dt);
 
     this.renderer.render(this.scene, this.cameraRig.camera);
   }
 }
 
 window.addEventListener('DOMContentLoaded', () => {
-  // SW + orientation (safe no-op fallbacks)
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
-  if (screen.orientation?.lock) screen.orientation.lock('landscape').catch(()=>{});
-
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(()=>{});
+  }
+  if (screen.orientation?.lock) {
+    screen.orientation.lock('landscape').catch(()=>{});
+  }
   new Game();
 });
