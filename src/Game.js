@@ -20,7 +20,7 @@ export const Game = {
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x0e1218);
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.05, maxSky+200);
-    camera.position.set(0, 3, 8);
+    // The camera's starting position is now set directly in the controller options below.
 
     // Sky
     {
@@ -91,7 +91,12 @@ export const Game = {
     const controls = new FirstPersonMobile(
       camera, renderer.domElement,
       { joy: document.getElementById('joy'), stick: document.getElementById('stick') },
-      { eyeHeight:1.8, gravity:-22, jumpSpeed:7.5 }
+      { 
+        eyeHeight: 1.8, 
+        gravity: -22, 
+        jumpSpeed: 7.5,
+        spawn: new THREE.Vector3(0, 5, 8) // Explicitly set a safe spawn point
+      }
     );
 
     // Collision & bounds (prevents falling through terrain)
