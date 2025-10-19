@@ -48,7 +48,8 @@ export class CameraRig {
         const touchY = touch.clientY;
 
         this.lon += (this.touchStartX - touchX) * 0.2;
-        this.lat -= (this.touchStartY - touchY) * 0.2;
+        // CORRECTED: Changed -= to += to invert vertical control. Swipe up now looks up.
+        this.lat += (this.touchStartY - touchY) * 0.2;
         this.lat = Math.max(-85, Math.min(85, this.lat)); // Clamp vertical rotation
 
         this.touchStartX = touchX;
@@ -60,11 +61,15 @@ export class CameraRig {
         this.theta = THREE.MathUtils.degToRad(this.lon);
 
         const target = new THREE.Vector3();
+        // The target calculation determines the direction the camera is looking.
+        // It points from the camera's position to a point on a large sphere around it.
         target.x = 500 * Math.sin(this.phi) * Math.cos(this.theta);
         target.y = 500 * Math.cos(this.phi);
         target.z = 500 * Math.sin(this.phi) * Math.sin(this.theta);
         
+        // The camera looks at a point in the calculated direction.
         this.camera.lookAt(this.camera.position.clone().add(target));
     }
 }
+
 
