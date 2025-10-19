@@ -1,221 +1,233 @@
-// Mechzilla.js
-// Procedural launch tower with animated "chopstick" catcher arms + QD arms.
-// three.js r128 compatible (uses global THREE).
-
-export class Mechzilla {
-  constructor(opts = {}) {
-    this.root = new THREE.Group();
-    this.root.name = 'Mechzilla';
-
-    // ---- Tunables ----
-    const {
-      towerHeight = 90,      // overall tower height
-      towerSide   = 6,       // outer square width/depth
-      segmentH    = 4,       // truss segment height
-      baseY       = 0,       // base sits on terrain
-      color       = 0x22262a
-    } = opts;
+// MechzillaTower.js (three r128 compatible)
+export class MechzillaTower {
+  constructor({
+    height = 75,          // total mast height
+    baseSize = 6,         // mast footprint
+    armLength = 24,       // length of each chopstick arm
+    armThickness = 0.6,   // thickness of truss arms
+    position = new THREE.Vector3(0, 0, -18)
+  } = {}) {
+    this.group = new THREE.Group();
+    this.group.position.copy(position);
+    this.group.name = "MechzillaTower";
 
     this.state = {
-      chopstickOpen: false,
-      boosterQDExtended: false,
-      shipQDExtended: false,
-      // anim targets
-      target: { chop: 0, booster: 0, ship: 0 }, // [0..1]
-      current: { chop: 0, booster: 0, ship: 0 }
+      open: 1,            // 1=open, 0=closed (grabbing)
+      targetOpen: 1,
+      armHeight: height * 0.55, // vertical slider for catcher carriage
+      targetArmHeight: height * 0.55
     };
 
     // Materials
-    const metal = new THREE.MeshStandardMaterial({
-      color, roughness: 0.6, metalness: 0.65
+    const steel = new THREE.MeshStandardMaterial({
+      color: 0x202326, metalness: 0.9, roughness: 0.35
+    });
+    const dark = new THREE.MeshStandardMaterial({
+      color: 0x0f1113, metalness: 0.6, roughness: 0.5
     });
 
-    // ---- Base slab ----
+    // --- Base block
     const base = new THREE.Mesh(
-      new THREE.BoxGeometry(towerSide * 1.6, 2, towerSide * 1.6),
-      metal
+      new THREE.BoxGeometry(baseSize * 1.2, 2, baseSize * 1.2),
+      dark
     );
-    base.position.y = baseY + 1;
-    base.castShadow = base.receiveShadow = true;
-    this.root.add(base);
+    base.position.y = 1;
+    base.receiveShadow = true;
+    this.group.add(base);
 
-    // ---- Vertical truss tower ----
-    const tower = new THREE.Group();
-    tower.position.y = baseY + 1; // sit on base
-    this.root.add(tower);
+    // --- Procedural lattice mast
+    const mast = this._buildMast({ height, baseSize, steel });
+    this.group.add(mast);
 
-    const colGeo = new THREE.BoxGeometry(0.6, segmentH, 0.6);
-    const beamGeo= new THREE.BoxGeometry(towerSide-1.2, 0.4, 0.4);
-    const braceGeo=new THREE.BoxGeometry(0.35, segmentH*1.05, 0.35);
+    // --- Catcher carriage that slides up/down the mast
+    const carriage = new THREE.Group();
+    carriage.name = "carriage";
+    carriage.position.y = this.state.armHeight;
+    mast.add(carriage);
+    this.carriage = carriage;
 
-    const levels = Math.floor(towerHeight / segmentH);
+    // carriage ring (visual)
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(baseSize * 0.62, 0.15, 8, 24),
+      steel
+    );
+    ring.rotation.x = Math.PI / 2;
+    ring.castShadow = ring.receiveShadow = true;
+    carriage.add(ring);
 
-    for (let i = 0; i < levels; i++) {
-      const y = i * segmentH + segmentH*0.5;
+    // --- Chopstick arms (left/right) — hinge at carriage sides
+    const hingeDist = baseSize * 0.55;
 
-      // 4 vertical columns (square)
-      const colPositions = [
-        [+1, +1], [-1, +1], [-1, -1], [+1, -1]
-      ].map(([sx, sz]) => ([
-        (towerSide/2 - 0.6/2) * sx,
-        y,
-        (towerSide/2 - 0.6/2) * sz
-      ]));
+    // Left arm root
+    const leftRoot = new THREE.Group();
+    leftRoot.position.set(-hingeDist, 0, 0);
+    carriage.add(leftRoot);
 
-      colPositions.forEach(p => {
-        const m = new THREE.Mesh(colGeo, metal);
-        m.position.set(p[0], p[1], p[2]);
-        m.castShadow = m.receiveShadow = true;
-        tower.add(m);
-      });
+    // Right arm root
+    const rightRoot = new THREE.Group();
+    rightRoot.position.set(hingeDist, 0, 0);
+    carriage.add(rightRoot);
 
-      // perimeter beams (X/Z)
-      const bx1 = new THREE.Mesh(beamGeo, metal);
-      bx1.position.set(0, y,  (towerSide/2 - 0.2));
-      const bx2 = bx1.clone(); bx2.position.z = -bx1.position.z;
-      const bz1 = new THREE.Mesh(beamGeo, metal);
-      bz1.geometry = beamGeo.clone();
-      bz1.rotation.y = Math.PI/2;
-      bz1.position.set((towerSide/2 - 0.2), y, 0);
-      const bz2 = bz1.clone(); bz2.position.x = -bz1.position.x;
-      [bx1,bx2,bz1,bz2].forEach(b=>{ b.castShadow=b.receiveShadow=true; tower.add(b); });
+    // Build truss arm for each side
+    const leftArm = this._buildTrussArm(armLength, armThickness, steel);
+    const rightArm = this._buildTrussArm(armLength, armThickness, steel);
+    // Pivot so they rotate toward rocket (in +Z direction by default)
+    leftArm.position.set(0, 0, 0);
+    rightArm.position.set(0, 0, 0);
+    leftRoot.add(leftArm);
+    rightRoot.add(rightArm);
+    this.leftRoot = leftRoot;
+    this.rightRoot = rightRoot;
 
-      // cross braces on two faces (alternate to reduce count)
-      if (i % 2 === 0) {
-        const br1 = new THREE.Mesh(braceGeo, metal);
-        br1.position.set( (towerSide/2 - 0.2), y,  (towerSide/2 - 0.2));
-        br1.rotation.z =  Math.PI/4;
-        const br2 = br1.clone();
-        br2.position.z = -(towerSide/2 - 0.2);
-        br2.rotation.z = -Math.PI/4;
-        const br3 = br1.clone();
-        br3.position.x = -(towerSide/2 - 0.2);
-        br3.rotation.z = -Math.PI/4;
-        const br4 = br1.clone();
-        br4.position.set(-(towerSide/2 - 0.2), y, -(towerSide/2 - 0.2));
-        br4.rotation.z =  Math.PI/4;
-        [br1,br2,br3,br4].forEach(b=>{ b.castShadow=b.receiveShadow=true; tower.add(b); });
-      }
+    // Add small clamp “fingers” at the tips
+    const fingerLen = 3;
+    const fingerGeo = new THREE.BoxGeometry(armThickness * 0.6, armThickness * 0.6, fingerLen);
+    const lFinger = new THREE.Mesh(fingerGeo, steel);
+    const rFinger = new THREE.Mesh(fingerGeo, steel);
+    lFinger.position.set(0, 0, armLength + fingerLen * 0.5);
+    rFinger.position.set(0, 0, armLength + fingerLen * 0.5);
+    leftArm.add(lFinger);
+    rightArm.add(rFinger);
+    lFinger.castShadow = rFinger.castShadow = true;
+
+    // --- Upper work platform (simple)
+    const platform = new THREE.Mesh(
+      new THREE.BoxGeometry(baseSize * 1.6, 1, baseSize * 1.0),
+      dark
+    );
+    platform.position.set(0, height - 4, baseSize * 0.2);
+    platform.castShadow = platform.receiveShadow = true;
+    this.group.add(platform);
+
+    // --- Simple fueling arm at mid height (decorative)
+    const fuelRoot = new THREE.Group();
+    fuelRoot.position.set(baseSize * 0.6, height * 0.35, 0);
+    this.group.add(fuelRoot);
+    const fuelArm = new THREE.Mesh(
+      new THREE.BoxGeometry(armLength * 0.6, armThickness, armThickness),
+      steel
+    );
+    fuelArm.position.x = armLength * 0.3;
+    fuelRoot.add(fuelArm);
+
+    // Store animated parts
+    this.anim = {
+      leftHinge: leftRoot,   // rotates about Y
+      rightHinge: rightRoot, // rotates about Y
+      carriage: carriage
+    };
+
+    // Initial open pose
+    this._applyOpenAmount(1);
+  }
+
+  // Build a tall lattice using instanced diagonal braces + posts
+  _buildMast({ height, baseSize, steel }) {
+    const mast = new THREE.Group();
+    mast.name = "mast";
+
+    // Four corner posts
+    const post = new THREE.BoxGeometry(0.5, height, 0.5);
+    const postMat = steel;
+    const corners = [
+      [+1, +1], [-1, +1], [-1, -1], [+1, -1]
+    ];
+    corners.forEach(([sx, sz]) => {
+      const m = new THREE.Mesh(post, postMat);
+      m.position.set((baseSize / 2 - 0.6) * sx, height / 2, (baseSize / 2 - 0.6) * sz);
+      m.castShadow = m.receiveShadow = true;
+      mast.add(m);
+    });
+
+    // Horizontal rings every “step”
+    const step = 3;
+    const levels = Math.floor(height / step);
+    const beamGeo = new THREE.BoxGeometry(baseSize - 1.2, 0.35, 0.35);
+    const beamGeoZ = new THREE.BoxGeometry(0.35, 0.35, baseSize - 1.2);
+
+    for (let i = 1; i <= levels; i++) {
+      const y = i * step;
+      const bx1 = new THREE.Mesh(beamGeo, steel);
+      const bx2 = new THREE.Mesh(beamGeo, steel);
+      const bz1 = new THREE.Mesh(beamGeoZ, steel);
+      const bz2 = new THREE.Mesh(beamGeoZ, steel);
+      bx1.position.set(0, y, baseSize / 2 - 0.6);
+      bx2.position.set(0, y, -baseSize / 2 + 0.6);
+      bz1.position.set(baseSize / 2 - 0.6, y, 0);
+      bz2.position.set(-baseSize / 2 + 0.6, y, 0);
+      [bx1, bx2, bz1, bz2].forEach(b => { b.castShadow = b.receiveShadow = true; mast.add(b); });
+
+      // Simple diagonal braces (visual)
+      const diag = new THREE.Mesh(new THREE.BoxGeometry(baseSize - 1.4, 0.25, 0.25), steel);
+      diag.position.set(0, y - step / 2, baseSize / 2 - 0.6);
+      diag.rotation.z = Math.PI / 4;
+      const diag2 = diag.clone(); diag2.position.z *= -1; diag2.rotation.z *= -1;
+      mast.add(diag, diag2);
     }
 
-    // ---- Platforms (simple) ----
-    const topDeck = new THREE.Mesh(
-      new THREE.BoxGeometry(towerSide*1.2, 0.6, towerSide*1.2),
-      metal
+    return mast;
+  }
+
+  _buildTrussArm(length, thickness, mat) {
+    const arm = new THREE.Group();
+
+    // Main spine
+    const spine = new THREE.Mesh(
+      new THREE.BoxGeometry(thickness, thickness, length),
+      mat
     );
-    topDeck.position.y = levels*segmentH + baseY + 1;
-    topDeck.castShadow = topDeck.receiveShadow = true;
-    tower.add(topDeck);
+    spine.position.z = length / 2;
+    spine.castShadow = spine.receiveShadow = true;
+    arm.add(spine);
 
-    // ---- Arms ----
-    const hingeY_chop = baseY + 52;     // catcher arms height
-    const hingeY_booster = baseY + 22;  // booster QD
-    const hingeY_ship = baseY + 70;     // ship QD
+    // Top and bottom chords
+    const chordOfs = thickness * 0.9;
+    const top = new THREE.Mesh(new THREE.BoxGeometry(thickness, thickness, length), mat);
+    top.position.set(0, chordOfs, length / 2);
+    const bot = new THREE.Mesh(new THREE.BoxGeometry(thickness, thickness, length), mat);
+    bot.position.set(0, -chordOfs, length / 2);
+    [top, bot].forEach(m => { m.castShadow = m.receiveShadow = true; arm.add(m); });
 
-    // Catcher ("chopsticks") – two mirrored arms rotating in Y to close
-    this.chopRoot = new THREE.Group();
-    this.chopRoot.position.set(towerSide/2, hingeY_chop, 0); // mounted on east face
-    tower.add(this.chopRoot);
-
-    const stickLen = 24, stickThick = 0.8;
-    const stickGeo = new THREE.BoxGeometry(stickLen, stickThick, 2.6);
-    const stickMat = metal;
-
-    this.leftStick = new THREE.Mesh(stickGeo, stickMat);
-    this.leftStick.castShadow = this.leftStick.receiveShadow = true;
-    this.leftStick.position.x = stickLen/2; // pivot at inner end
-    this.leftStick.position.y = 0.6;
-    this.leftStick.rotation.z = 0.02;
-    this.chopRoot.add(this.leftStick);
-
-    this.rightStick = this.leftStick.clone();
-    this.rightStick.position.y = -0.6;
-    this.rightStick.scale.y = 1.0;
-    this.chopRoot.add(this.rightStick);
-
-    // Simple "fingers" at ends
-    const fingerGeo = new THREE.BoxGeometry(3.6, 0.5, 0.5);
-    const lf = new THREE.Mesh(fingerGeo, stickMat);
-    lf.position.set(stickLen-1.6, 0, 1.3);
-    const lf2 = lf.clone(); lf2.position.z = -1.3;
-    this.leftStick.add(lf, lf2);
-    const rf = lf.clone(); const rf2 = lf2.clone();
-    this.rightStick.add(rf, rf2);
-
-    // Booster QD (lower extendable arm – translates along X)
-    this.boosterQDBase = new THREE.Group();
-    this.boosterQDBase.position.set(towerSide/2, hingeY_booster, 0);
-    tower.add(this.boosterQDBase);
-
-    const qdBase = new THREE.Mesh(new THREE.BoxGeometry(3, 1, 3), metal);
-    qdBase.castShadow = qdBase.receiveShadow = true;
-    this.boosterQDBase.add(qdBase);
-
-    this.boosterQD = new THREE.Mesh(new THREE.BoxGeometry(14, 0.8, 2.2), metal);
-    this.boosterQD.castShadow = this.boosterQD.receiveShadow = true;
-    this.boosterQD.position.x = 7.5; // extends outward
-    this.boosterQDBase.add(this.boosterQD);
-
-    // Ship QD (upper small platform – rotates a little)
-    this.shipQDBase = new THREE.Group();
-    this.shipQDBase.position.set(towerSide/2, hingeY_ship, 3.2);
-    tower.add(this.shipQDBase);
-
-    const shipNeck = new THREE.Mesh(new THREE.BoxGeometry(4, 0.8, 1.2), metal);
-    shipNeck.position.x = 2;
-    this.shipQDBase.add(shipNeck);
-
-    this.shipQD = new THREE.Mesh(new THREE.BoxGeometry(6, 0.6, 3.2), metal);
-    this.shipQD.position.x = 5;
-    this.shipQD.castShadow = this.shipQD.receiveShadow = true;
-    this.shipQDBase.add(this.shipQD);
-
-    // Slight offset so rocket stand can sit at (0,0,0)
-    this.root.position.set(0, 0, -15);
+    // Web members (simple repeating diagonals)
+    const seg = Math.max(4, Math.floor(length / 2));
+    const webGeo = new THREE.BoxGeometry(thickness * 0.5, thickness * 0.5, 2);
+    for (let i = 0; i < seg; i++) {
+      const z = (i + 0.5) * (length / seg);
+      const w1 = new THREE.Mesh(webGeo, mat);
+      const w2 = new THREE.Mesh(webGeo, mat);
+      w1.position.set(0, 0.0, z);
+      w2.position.set(0, 0.0, z + 0.8);
+      w1.rotation.x = Math.PI / 4;
+      w2.rotation.x = -Math.PI / 4;
+      arm.add(w1, w2);
+    }
+    return arm;
   }
 
-  // ----------------- Controls -----------------
-  openChopsticks(open = true) {
-    this.state.chopstickOpen = open;
-    this.state.target.chop = open ? 1 : 0; // 0 closed, 1 open
+  /** Set arms open amount 0..1 (0=closed/grab, 1=fully open) */
+  _applyOpenAmount(t) {
+    const maxAngle = THREE.MathUtils.degToRad(55); // how wide the arms open
+    // Rotate around Y so arms swing toward +Z (rocket position)
+    this.anim.leftHinge.rotation.y = THREE.MathUtils.lerp(0,  maxAngle, t);
+    this.anim.rightHinge.rotation.y = THREE.MathUtils.lerp(0, -maxAngle, t);
   }
-  toggleChopsticks() { this.openChopsticks(!this.state.chopstickOpen); }
 
-  extendBoosterQD(extend = true) {
-    this.state.boosterQDExtended = extend;
-    this.state.target.booster = extend ? 1 : 0; // 0 retracted, 1 extended
-  }
-  toggleBoosterQD(){ this.extendBoosterQD(!this.state.boosterQDExtended); }
+  /** Public API */
+  setOpenAmount(t) { this.state.targetOpen = THREE.MathUtils.clamp(t, 0, 1); }
+  open() { this.setOpenAmount(1); }
+  close() { this.setOpenAmount(0); }
+  toggle() { this.setOpenAmount(this.state.targetOpen < 0.5 ? 1 : 0); }
 
-  extendShipQD(extend = true) {
-    this.state.shipQDExtended = extend;
-    this.state.target.ship = extend ? 1 : 0;
-  }
-  toggleShipQD(){ this.extendShipQD(!this.state.shipQDExtended); }
+  setCatcherHeight(y) { this.state.targetArmHeight = y; }
 
-  // ----------------- Animation -----------------
+  /** Call every frame with deltaTime */
   update(dt) {
-    // critically damped-ish easing
-    const lerp = (a,b,t)=>a+(b-a)*Math.min(1, t);
-    const speed = 4.0 * dt;
+    // Smoothly lerp open/height
+    const k = 8; // responsiveness
+    this.state.open += (this.state.targetOpen - this.state.open) * Math.min(1, k * dt);
+    this._applyOpenAmount(this.state.open);
 
-    // Ease toward targets
-    this.state.current.chop    = lerp(this.state.current.chop,    this.state.target.chop,    speed);
-    this.state.current.booster = lerp(this.state.current.booster, this.state.target.booster, speed);
-    this.state.current.ship    = lerp(this.state.current.ship,    this.state.target.ship,    speed);
-
-    // Apply to transforms
-    // Chopsticks: rotate around Y at hinge (0=closed touching, 1=fully open ~55°)
-    const openAngle = THREE.MathUtils.degToRad(55) * this.state.current.chop;
-    this.leftStick.rotation.y  =  openAngle;
-    this.rightStick.rotation.y = -openAngle;
-
-    // Booster QD: slide out 0..1 maps to 0.5m..7.5m (already at 7.5 default)
-    const bMin = 0.6, bMax = 7.5;
-    this.boosterQD.position.x = bMin + (bMax - bMin) * this.state.current.booster;
-
-    // Ship QD: small yaw toward vehicle (0..1 => 0..18°)
-    const sAngle = THREE.MathUtils.degToRad(18) * this.state.current.ship;
-    this.shipQDBase.rotation.y = sAngle;
+    this.state.armHeight += (this.state.targetArmHeight - this.state.armHeight) * Math.min(1, k * dt);
+    this.anim.carriage.position.y = this.state.armHeight;
   }
 }
