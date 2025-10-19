@@ -3,115 +3,117 @@ import { createSkydome } from './Skydome.js';
 import { setupLighting } from './Lighting.js';
 import { CameraRig } from './Camera.js';
 import { Joystick } from './Joystick.js';
+import { Mechzilla } from './Mechzilla.js';
 
 class Game {
-    constructor() {
-        this.scene = new THREE.Scene();
-        this.cameraRig = new CameraRig();
-        this.renderer = this.cameraRig.renderer;
+  constructor() {
+    this.scene = new THREE.Scene();
+    this.cameraRig = new CameraRig();
+    this.renderer = this.cameraRig.renderer;
 
-        this.raycaster = new THREE.Raycaster();
-        this.playerHeight = 1.7; // Standard height for a first-person character.
+    this.raycaster = new THREE.Raycaster();
+    this.playerHeight = 1.7;
 
-        this.setupWorld();
-        this.joystick = new Joystick(document.getElementById('joystick-container'), document.getElementById('joystick-handle'));
-        
-        this.clock = new THREE.Clock();
-        this.animate = this.animate.bind(this);
-        this.animate();
+    this.setupWorld();
+    this.joystick = new Joystick(
+      document.getElementById('joystick-container'),
+      document.getElementById('joystick-handle')
+    );
+
+    // --- Mechzilla ---
+    this.tower = new Mechzilla({});
+    this.scene.add(this.tower.root);
+
+    // UI wiring
+    this.bindTowerUI();
+
+    this.clock = new THREE.Clock();
+    this.animate = this.animate.bind(this);
+    this.animate();
+  }
+
+  bindTowerUI() {
+    const btnChop = document.getElementById('btn-chop');
+    const btnBooster = document.getElementById('btn-booster');
+    const btnShip = document.getElementById('btn-ship');
+
+    const refreshLabels = () => {
+      btnChop.textContent = this.tower.state.chopstickOpen ? 'Close Chopsticks' : 'Open Chopsticks';
+      btnBooster.textContent = this.tower.state.boosterQDExtended ? 'Retract Booster QD' : 'Extend Booster QD';
+      btnShip.textContent = this.tower.state.shipQDExtended ? 'Retract Ship QD' : 'Extend Ship QD';
+    };
+
+    btnChop.onclick = () => { this.tower.toggleChopsticks(); refreshLabels(); };
+    btnBooster.onclick = () => { this.tower.toggleBoosterQD(); refreshLabels(); };
+    btnShip.onclick = () => { this.tower.toggleShipQD(); refreshLabels(); };
+
+    refreshLabels();
+  }
+
+  setupWorld() {
+    const terrain = createTerrain();
+    this.scene.add(terrain);
+
+    const skydome = createSkydome();
+    this.scene.add(skydome);
+
+    setupLighting(this.scene);
+
+    this.scene.add(this.cameraRig.camera);
+    this.cameraRig.camera.position.set(0, this.playerHeight, 18); // start near the pad
+    this.cameraRig.lon = 180; // look toward tower by default
+  }
+
+  handleControls(dt) {
+    const moveSpeed = 5 * dt;
+
+    if (this.joystick.isActive) {
+      const forward = this.joystick.vertical;
+      const strafe = this.joystick.horizontal;
+
+      const dir = new THREE.Vector3();
+      this.cameraRig.camera.getWorldDirection(dir);
+      dir.y = 0; dir.normalize();
+      const right = dir.clone().applyAxisAngle(new THREE.Vector3(0,1,0), Math.PI/2);
+
+      const move = new THREE.Vector3();
+      if (forward) move.addScaledVector(dir, -forward * moveSpeed);
+      if (strafe)  move.addScaledVector(right, -strafe * moveSpeed);
+
+      this.cameraRig.camera.position.add(move);
     }
 
-    setupWorld() {
-        const terrain = createTerrain();
-        this.scene.add(terrain);
-
-        const skydome = createSkydome();
-        this.scene.add(skydome);
-
-        setupLighting(this.scene);
-        
-        this.scene.add(this.cameraRig.camera);
-        // Set the initial player height above the ground (at y=0).
-        this.cameraRig.camera.position.y = this.playerHeight;
+    // keep camera on ground (plane)
+    const terrain = this.scene.getObjectByName('terrain');
+    if (terrain) {
+      const rayOrigin = new THREE.Vector3(this.cameraRig.camera.position.x, 50, this.cameraRig.camera.position.z);
+      this.raycaster.set(rayOrigin, new THREE.Vector3(0,-1,0));
+      const isects = this.raycaster.intersectObject(terrain);
+      if (isects.length) {
+        const groundY = isects[0].point.y;
+        this.cameraRig.camera.position.y = groundY + this.playerHeight;
+      }
     }
+  }
 
-    handleControls(deltaTime) {
-        const moveSpeed = 5 * deltaTime; // Player moves 5 units per second.
+  animate() {
+    requestAnimationFrame(this.animate);
+    const dt = this.clock.getDelta();
 
-        if (this.joystick.isActive) {
-            const forwardMovement = this.joystick.vertical;
-            const strafeMovement = this.joystick.horizontal;
-            
-            // Get the horizontal direction the camera is facing.
-            const direction = new THREE.Vector3();
-            this.cameraRig.camera.getWorldDirection(direction);
-            direction.y = 0; // We only want movement on the XZ plane.
-            direction.normalize();
+    this.handleControls(dt);
+    this.tower.update(dt);
+    this.cameraRig.update();
 
-            // Calculate the strafe direction (90 degrees to the right).
-            const strafeDirection = direction.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 2);
-
-            // Calculate the total movement vector for this frame.
-            const moveVector = new THREE.Vector3();
-            if (forwardMovement !== 0) {
-                moveVector.addScaledVector(direction, -forwardMovement * moveSpeed);
-            }
-            if (strafeMovement !== 0) {
-                moveVector.addScaledVector(strafeDirection, -strafeMovement * moveSpeed);
-            }
-            
-            // Apply the movement to the camera's position.
-            this.cameraRig.camera.position.add(moveVector);
-        }
-
-        // --- Terrain Collision Logic ---
-        const terrain = this.scene.getObjectByName("terrain");
-        if (terrain) {
-            // Set the raycaster to point straight down from the player's current XZ position.
-            // We start the ray from high up to ensure it's above any potential hills.
-            const rayOrigin = new THREE.Vector3(this.cameraRig.camera.position.x, 50, this.cameraRig.camera.position.z);
-            this.raycaster.set(rayOrigin, new THREE.Vector3(0, -1, 0));
-
-            const intersects = this.raycaster.intersectObject(terrain);
-
-            if (intersects.length > 0) {
-                // If the ray hits the terrain, move the camera to the intersection point 
-                // plus the defined player height.
-                const groundY = intersects[0].point.y;
-                this.cameraRig.camera.position.y = groundY + this.playerHeight;
-            }
-        }
-    }
-
-    animate() {
-        requestAnimationFrame(this.animate);
-        const deltaTime = this.clock.getDelta();
-        
-        this.handleControls(deltaTime);
-        this.cameraRig.update();
-
-        this.renderer.render(this.scene, this.cameraRig.camera);
-    }
+    this.renderer.render(this.scene, this.cameraRig.camera);
+  }
 }
 
 window.addEventListener('DOMContentLoaded', () => {
-    // Register Service Worker
-    if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/sw.js').then(function(registration) {
-            console.log('Service Worker registered with scope:', registration.scope);
-        }).catch(function(error) {
-            console.log('Service Worker registration failed:', error);
-        });
-    }
-    
-    // Lock to landscape on mobile
-    if (screen.orientation && screen.orientation.lock) {
-        screen.orientation.lock('landscape').catch(err => {
-            console.log("Could not lock orientation:", err);
-        });
-    }
-
-    new Game();
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(()=>{});
+  }
+  if (screen.orientation && screen.orientation.lock) {
+    screen.orientation.lock('landscape').catch(()=>{});
+  }
+  new Game();
 });
-
-
