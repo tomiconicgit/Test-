@@ -7,9 +7,11 @@
     <title>Voxel Game</title>
     <style>
         :root {
-            --ui-bg-color: rgba(255, 255, 255, 0.2);
-            --ui-element-bg: rgba(0, 0, 0, 0.4);
-            --ui-element-size: 60px;
+            --ui-bg-color: rgba(0, 0, 0, 0.2);
+            --ui-element-bg: rgba(255, 255, 255, 0.25);
+            --ui-element-size: 64px;
+            --ui-joystick-base-size: 130px;
+            --ui-joystick-knob-size: 65px;
         }
         body {
             margin: 0;
@@ -29,7 +31,8 @@
             background: white;
             border-radius: 50%;
             transform: translate(-50%, -50%);
-            border: 1px solid black;
+            border: 1px solid rgba(0,0,0,0.5);
+            pointer-events: none;
         }
 
         #ui-container {
@@ -39,25 +42,26 @@
             width: 100%;
             height: 100%;
             pointer-events: none; /* Let touches pass through to the canvas */
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            padding: 20px;
+            box-sizing: border-box;
         }
         
         #joystick-container, #action-buttons-container {
-            position: absolute;
-            bottom: 20px;
-            display: flex;
-            align-items: center;
-            gap: 20px;
             pointer-events: all; /* Enable touches for UI elements */
+            display: flex;
+            align-items: flex-end;
+            gap: 15px;
         }
         
-        #joystick-container {
-            left: 20px;
+        #action-buttons-group {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
         }
         
-        #action-buttons-container {
-            right: 20px;
-        }
-
         #block-select-container {
             position: absolute;
             top: 20px;
@@ -65,14 +69,14 @@
             pointer-events: all;
         }
 
-        /* --- UI Elements --- */
+        /* --- Joystick --- */
         #joystick {
             position: relative;
-            width: 120px;
-            height: 120px;
+            width: var(--ui-joystick-base-size);
+            height: var(--ui-joystick-base-size);
             border-radius: 50%;
-            background: var(--ui-bg-color);
-            backdrop-filter: blur(5px);
+            background: linear-gradient(145deg, rgba(255,255,255,0.1), rgba(0,0,0,0.2));
+            box-shadow: inset 0 3px 6px rgba(0,0,0,0.4), 0 2px 4px rgba(0,0,0,0.3);
             touch-action: none;
         }
         #knob {
@@ -80,40 +84,55 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            width: 60px;
-            height: 60px;
-            background: var(--ui-element-bg);
+            width: var(--ui-joystick-knob-size);
+            height: var(--ui-joystick-knob-size);
+            background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.4), rgba(255,255,255,0.1));
             border-radius: 50%;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3), inset 0 2px 2px rgba(255,255,255,0.2);
+            transition: transform 0.1s ease-out;
         }
 
+        /* --- Buttons --- */
         .action-button {
             width: var(--ui-element-size);
             height: var(--ui-element-size);
             background: var(--ui-element-bg);
             color: white;
-            border: 2px solid var(--ui-bg-color);
-            border-radius: 50%;
+            border: 1px solid rgba(255,255,255,0.3);
+            border-radius: 20px;
             display: flex;
             justify-content: center;
             align-items: center;
-            font-size: 24px;
-            font-weight: bold;
             user-select: none;
-            backdrop-filter: blur(5px);
+            backdrop-filter: blur(8px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
         }
-
+        .action-button:active {
+            transform: scale(0.95);
+            background: rgba(255,255,255,0.4);
+        }
+        .action-button svg {
+            width: 50%;
+            height: 50%;
+            stroke: white;
+            stroke-width: 2.5;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            fill: none;
+        }
         #jump-button {
             width: 80px;
             height: 80px;
         }
 
+        /* --- Block Selector --- */
         #block-select {
             padding: 10px;
             background: var(--ui-element-bg);
             color: white;
-            border: 2px solid var(--ui-bg-color);
+            border: 1px solid rgba(255,255,255,0.3);
             border-radius: 8px;
-            backdrop-filter: blur(5px);
+            backdrop-filter: blur(8px);
         }
 
     </style>
@@ -135,11 +154,20 @@
         </div>
 
         <div id="action-buttons-container">
-             <div id="action-buttons-vertical">
-                <button id="place-button" class="action-button">⛏️</button>
-                <button id="dig-button" class="action-button">🧱</button>
+             <div id="action-buttons-group">
+                <button id="dig-button" class="action-button">
+                    <!-- Pickaxe SVG -->
+                    <svg viewBox="0 0 24 24"><path d="M12.33 21.37l- косметический.71-3.71m-8.36-8.36l3.71 3.71M12 4L4 12l8 8 8-8-8-8z"></path><path d="M17.71 10.29l-1.42-1.42a2 2 0 00-2.82 0l-3.18 3.18 4.24 4.24 3.18-3.18a2 2 0 000-2.82z"></path></svg>
+                </button>
+                <button id="place-button" class="action-button">
+                    <!-- Block/Cube SVG -->
+                    <svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+                </button>
              </div>
-             <button id="jump-button" class="action-button">🚀</button>
+             <button id="jump-button" class="action-button">
+                <!-- Jump/Up Arrow SVG -->
+                 <svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+             </button>
         </div>
     </div>
     
@@ -151,3 +179,4 @@
     </script>
 </body>
 </html>
+
