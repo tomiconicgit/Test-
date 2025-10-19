@@ -24,9 +24,9 @@
 </div>
 
 <script type="module">
-/* Imports (ESM via CDN) */
-import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
-import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+/* ===== Imports (pinned, reliable) ===== */
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js';
 import GUI from 'https://cdn.jsdelivr.net/npm/lil-gui@0.19/+esm';
 
 /* ---------- Scene / Camera / Renderer ---------- */
@@ -39,16 +39,23 @@ camera.position.set(85, 85, 120);
 const renderer = new THREE.WebGLRenderer({ antialias:true, powerPreference:'high-performance' });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
+/* Fallbacks that prevent the “black screen” trap */
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
 renderer.shadowMap.enabled = true;
+// renderer.physicallyCorrectLights = true; // Note: This property is deprecated in recent Three.js versions
 document.body.appendChild(renderer.domElement);
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.target.set(0, 70, 0);
 controls.enableDamping = true;
 
-/* ---------- Lights ---------- */
-scene.add(new THREE.AmbientLight(0xffffff, 0.35));
-const sun = new THREE.DirectionalLight(0xffffff, 1.0);
+/* ---------- Lights (robust pack) ---------- */
+scene.add(new THREE.HemisphereLight(0xffffff, 0x1a1f26, 0.9)); // bright sky/ground fill
+scene.add(new THREE.AmbientLight(0xffffff, 0.25));             // extra base fill
+
+const sun = new THREE.DirectionalLight(0xffffff, 1.1);
 sun.position.set(120, 200, 80);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
@@ -67,6 +74,19 @@ ground.rotation.x = -Math.PI/2;
 ground.receiveShadow = true;
 scene.add(ground);
 
+/* ---------- Debug probe (set false to remove) ---------- */
+const DEBUG_PROBE = true;
+if (DEBUG_PROBE) {
+  scene.add(new THREE.AxesHelper(10));
+  const probe = new THREE.Mesh(
+    new THREE.BoxGeometry(5,5,5),
+    new THREE.MeshStandardMaterial({color:0x66aaff, metalness:.6, roughness:.4})
+  );
+  probe.position.set(0,5,0);
+  probe.castShadow = true;
+  scene.add(probe);
+}
+
 /* ---------- Materials ---------- */
 const steel = new THREE.MeshStandardMaterial({ color:0x8c949c, metalness:0.85, roughness:0.35 });
 const darkSteel = new THREE.MeshStandardMaterial({ color:0x3a3f45, metalness:0.9, roughness:0.45 });
@@ -80,16 +100,15 @@ scene.add(tower);
 const params = {
   towerHeight: 140,
   segmentH: 6,
-  bay: 12,          // distance between vertical legs
-  brace: 1.3,       // thickness of braces
-  leg: 2.0,         // thickness of legs
-  baseOffset: 0,    // y offset for whole tower
-  // Arm defaults
-  chopstickOpen: 9,     // gap between lower arms
-  chopstickAngle: 0,    // slight pitch on chopsticks
-  qdYaw: -22,           // degrees
-  qdExtend: 22,         // linear extension
-  topYaw: -8            // degrees
+  bay: 12,
+  brace: 1.3,
+  leg: 2.0,
+  baseOffset: 0,
+  chopstickOpen: 9,
+  chopstickAngle: 0,
+  qdYaw: -22,
+  qdExtend: 22,
+  topYaw: -8
 };
 
 /* ---------- Build tower lattice ---------- */
@@ -103,7 +122,7 @@ function buildTower() {
   tower.add(ring);
   ring.position.y = baseOffset;
 
-  // Four vertical legs as InstancedMesh
+  // Four vertical legs (InstancedMesh)
   const legGeom = new THREE.BoxGeometry(leg, segmentH, leg);
   const legMesh = new THREE.InstancedMesh(legGeom, steel, 4 * segments);
   legMesh.castShadow = true; legMesh.receiveShadow = true;
@@ -125,50 +144,61 @@ function buildTower() {
   }
   ring.add(legMesh);
 
-  // Horizontal rings
+  // Horizontal rings (Corrected)
   const hGeom = new THREE.BoxGeometry(bay - leg, brace, leg);
   const vGeom = new THREE.BoxGeometry(leg, brace, bay - leg);
 
   const ringCount = segments + 1;
-  const horiz = new THREE.InstancedMesh(new THREE.BoxGeometry(), steel, ringCount * 8);
-  i = 0;
+  // Create TWO InstancedMesh objects: one for horizontal, one for vertical
+  const horizMesh = new THREE.InstancedMesh(hGeom, steel, ringCount * 4);
+  const vertMesh = new THREE.InstancedMesh(vGeom, steel, ringCount * 4);
+  horizMesh.castShadow = vertMesh.castShadow = true;
+  horizMesh.receiveShadow = vertMesh.receiveShadow = true;
+  
+  let i_h = 0; // Index for horizontal meshes
+  let i_v = 0; // Index for vertical meshes
 
   for (let r = 0; r < ringCount; r++) {
-    const y = r*segmentH;
-    const pieces = [
-      { geom:hGeom, pos:[0, y,  bay/2], rot:[0,0,0] },
-      { geom:hGeom, pos:[0, y, -bay/2], rot:[0,0,0] },
-      { geom:vGeom, pos:[ bay/2, y, 0], rot:[0,0,0] },
-      { geom:vGeom, pos:[-bay/2, y, 0], rot:[0,0,0] },
-      // second layer (offset slightly for depth)
-      { geom:hGeom, pos:[0, y+brace*1.1,  bay/2], rot:[0,0,0] },
-      { geom:hGeom, pos:[0, y+brace*1.1, -bay/2], rot:[0,0,0] },
-      { geom:vGeom, pos:[ bay/2, y+brace*1.1, 0], rot:[0,0,0] },
-      { geom:vGeom, pos:[-bay/2, y+brace*1.1, 0], rot:[0,0,0] },
-    ];
-    for (const p of pieces) {
-      m.identity()
-       .makeRotationFromEuler(new THREE.Euler(...p.rot, 'XYZ'))
-       .setPosition(...p.pos);
-      const mesh = new THREE.Mesh(p.geom, steel);
-      horiz.setMatrixAt(i++, mesh.matrix);
-    }
-  }
-  horiz.instanceMatrix.needsUpdate = true;
-  horiz.geometry = hGeom; // placeholder; instances carry transforms
-  ring.add(horiz);
+    const y = r * segmentH;
 
-  // Diagonal braces (alternating Xs on each face)
+    // Define positions for the two sets of rings
+    const topRingY = y + brace * 1.1;
+
+    // --- Populate Horizontal Mesh ---
+    m.identity().setPosition(0, y, bay/2);
+    horizMesh.setMatrixAt(i_h++, m);
+    m.identity().setPosition(0, y, -bay/2);
+    horizMesh.setMatrixAt(i_h++, m);
+    m.identity().setPosition(0, topRingY, bay/2);
+    horizMesh.setMatrixAt(i_h++, m);
+    m.identity().setPosition(0, topRingY, -bay/2);
+    horizMesh.setMatrixAt(i_h++, m);
+
+    // --- Populate Vertical Mesh ---
+    m.identity().setPosition(bay/2, y, 0);
+    vertMesh.setMatrixAt(i_v++, m);
+    m.identity().setPosition(-bay/2, y, 0);
+    vertMesh.setMatrixAt(i_v++, m);
+    m.identity().setPosition(bay/2, topRingY, 0);
+    vertMesh.setMatrixAt(i_v++, m);
+    m.identity().setPosition(-bay/2, topRingY, 0);
+    vertMesh.setMatrixAt(i_v++, m);
+  }
+  // Add both correct meshes to the scene graph
+  ring.add(horizMesh, vertMesh);
+
+
+  // Diagonal braces
   const dGeom = new THREE.BoxGeometry(brace, Math.hypot(segmentH, bay-leg), brace);
   const diag = new THREE.InstancedMesh(dGeom, darkSteel, segments * 8);
   diag.castShadow = true;
   i = 0;
 
   const faces = [
-    { a:[-bay/2+leg/2, 0, -bay/2+leg/2], b:[ bay/2-leg/2, segmentH, -bay/2+leg/2], axis:'z' }, // front
-    { a:[ bay/2-leg/2, 0,  bay/2-leg/2], b:[-bay/2+leg/2, segmentH,  bay/2-leg/2], axis:'z' }, // back
-    { a:[-bay/2+leg/2, 0,  bay/2-leg/2], b:[-bay/2+leg/2, segmentH, -bay/2+leg/2], axis:'x' }, // left
-    { a:[ bay/2-leg/2, 0, -bay/2+leg/2], b:[ bay/2-leg/2, segmentH,  bay/2-leg/2], axis:'x' }, // right
+    { a:[-bay/2+leg/2, 0, -bay/2+leg/2], b:[ bay/2-leg/2, segmentH, -bay/2+leg/2] },
+    { a:[ bay/2-leg/2, 0,  bay/2-leg/2], b:[-bay/2+leg/2, segmentH,  bay/2-leg/2] },
+    { a:[-bay/2+leg/2, 0,  bay/2-leg/2], b:[-bay/2+leg/2, segmentH, -bay/2+leg/2] },
+    { a:[ bay/2-leg/2, 0, -bay/2+leg/2], b:[ bay/2-leg/2, segmentH,  bay/2-leg/2] },
   ];
 
   for (let s = 0; s < segments; s++) {
@@ -177,7 +207,6 @@ function buildTower() {
     for (const f of faces) {
       const from = new THREE.Vector3(f.a[0], y0, f.a[2]);
       const to   = new THREE.Vector3(f.b[0], y1, f.b[2]);
-      // swap ends every other segment to make “X”
       if (flip < 0) [to.x, from.x] = [from.x, to.x], [to.z, from.z] = [from.z, to.z];
       const mid = from.clone().add(to).multiplyScalar(0.5);
       const dir = to.clone().sub(from);
@@ -190,7 +219,7 @@ function buildTower() {
   }
   ring.add(diag);
 
-  // Top hat (simple service deck)
+  // Top deck
   const deck = new THREE.Mesh(
     new THREE.BoxGeometry(bay*1.2, brace*2, bay*1.2),
     darkSteel
@@ -217,7 +246,6 @@ let chopstickGrp, qdGrp, topArmGrp;
 function makeTrussBeam(len = 30, depth = 4, thickness = 1.2, mat = darkSteel) {
   const g = new THREE.Group();
 
-  // Outer rails
   const railGeom = new THREE.BoxGeometry(len, thickness, thickness);
   const rail1 = new THREE.Mesh(railGeom, mat);
   const rail2 = new THREE.Mesh(railGeom, mat);
@@ -226,7 +254,6 @@ function makeTrussBeam(len = 30, depth = 4, thickness = 1.2, mat = darkSteel) {
   rail1.castShadow = rail2.castShadow = true;
   g.add(rail1, rail2);
 
-  // Uprights
   const uprGeom = new THREE.BoxGeometry(thickness, depth, thickness);
   const uprCount = Math.max(2, Math.floor(len / 4));
   for (let i=0;i<=uprCount;i++){
@@ -237,18 +264,16 @@ function makeTrussBeam(len = 30, depth = 4, thickness = 1.2, mat = darkSteel) {
     g.add(u);
   }
 
-  // Diagonals
   const diagGeom = new THREE.BoxGeometry(thickness, Math.hypot(depth, len/uprCount), thickness);
   for (let i=0;i<uprCount;i++){
     const x0 = -len/2 + (len/uprCount)*i;
     const x1 = -len/2 + (len/uprCount)*(i+1);
     const midX = (x0+x1)/2;
     const flip = (i%2===0) ? 1 : -1;
-    const yMid = 0;
     const segLen = x1-x0;
     const quat = new THREE.Quaternion().setFromEuler(new THREE.Euler(0,0,Math.atan2(depth*flip, segLen)));
     const d = new THREE.Mesh(diagGeom, mat);
-    d.position.set(midX, yMid, 0);
+    d.position.set(midX, 0, 0);
     d.quaternion.copy(quat);
     d.castShadow = true;
     g.add(d);
@@ -261,7 +286,7 @@ function buildArms(totalH) {
   const hubY_qd   = totalH * 0.58;
   const hubY_top  = totalH * 0.80;
 
-  /* Lower “chopsticks” (pair that opens/closes) */
+  // Lower “chopsticks”
   chopstickGrp = new THREE.Group();
   chopstickGrp.position.set(0, hubY_chop, 0);
   tower.add(chopstickGrp);
@@ -273,7 +298,6 @@ function buildArms(totalH) {
   const beamR = makeTrussBeam(chopLen, 5, 1.2, darkSteel);
   beamL.position.x = -chopLen/2; beamR.position.x = chopLen/2;
 
-  // “Fingers”
   const fingerGeom = new THREE.BoxGeometry(1.2, 6, 1.2);
   const fingerMat = steel;
   const fingerL = new THREE.Mesh(fingerGeom, fingerMat);
@@ -286,7 +310,6 @@ function buildArms(totalH) {
   chopL.add(beamL, fingerL);
   chopR.add(beamR, fingerR);
 
-  // Hinges to open/close
   const hingeL = new THREE.Group();
   const hingeR = new THREE.Group();
   hingeL.add(chopL); hingeR.add(chopR);
@@ -296,19 +319,18 @@ function buildArms(totalH) {
   hingeL.rotation.z =  THREE.MathUtils.degToRad(params.chopstickAngle);
   hingeR.rotation.z = -THREE.MathUtils.degToRad(params.chopstickAngle);
 
-  // Mount hinges to tower face
   const mount = new THREE.Group();
-  mount.position.set(bay/2 + 1.0, 0, 0);
+  mount.position.set(params.bay/2 + 1.0, 0, 0);
   chopstickGrp.add(mount);
   mount.add(hingeL, hingeR);
 
-  /* Mid QD arm (rotates + telescopes) */
+  // Mid QD arm
   qdGrp = new THREE.Group();
   qdGrp.position.set(0, hubY_qd, 0);
   tower.add(qdGrp);
 
   const qdPivot = new THREE.Group();
-  qdPivot.position.set(bay/2 + 1.0, 0, 0);
+  qdPivot.position.set(params.bay/2 + 1.0, 0, 0);
   qdPivot.rotation.y = THREE.MathUtils.degToRad(params.qdYaw);
   qdGrp.add(qdPivot);
 
@@ -318,7 +340,6 @@ function buildArms(totalH) {
   const qdInner = makeTrussBeam(22, 5, 1.0, steel);
   qdInner.position.x = 24 + params.qdExtend;
 
-  // rudimentary “umbilical head”
   const head = new THREE.Mesh(new THREE.CylinderGeometry(2.5, 2.5, 2, 16), steel);
   head.rotation.z = Math.PI/2;
   head.position.set(24 + params.qdExtend + 12, 0, 0);
@@ -326,13 +347,13 @@ function buildArms(totalH) {
 
   qdPivot.add(qdOuter, qdInner, head);
 
-  /* Upper stabilizer arm (rotates only) */
+  // Upper stabilizer arm
   topArmGrp = new THREE.Group();
   topArmGrp.position.set(0, hubY_top, 0);
   tower.add(topArmGrp);
 
   const topPivot = new THREE.Group();
-  topPivot.position.set(bay/2 + 1.0, 0, 0);
+  topPivot.position.set(params.bay/2 + 1.0, 0, 0);
   topPivot.rotation.y = THREE.MathUtils.degToRad(params.topYaw);
   topArmGrp.add(topPivot);
 
@@ -348,7 +369,7 @@ function buildArms(totalH) {
   for (const y of [hubY_chop, hubY_qd, hubY_top]) {
     const h = new THREE.Mesh(hingeGeom, steel);
     h.rotation.z = Math.PI/2;
-    h.position.set(bay/2+1.0, y, 0);
+    h.position.set(params.bay/2+1.0, y, 0);
     h.castShadow = true;
     tower.add(h);
   }
@@ -390,22 +411,21 @@ const f4 = gui.addFolder('Top Arm');
 f4.add(params, 'topYaw', -45, 15, 1).onChange(v=>{
   topArmGrp.children[0].rotation.y = THREE.MathUtils.degToRad(v);
 });
-
 gui.close();
 
 /* ---------- Keyboard shortcuts ---------- */
 window.addEventListener('keydown', (e)=>{
   switch(e.key.toLowerCase()){
-    case '1': params.chopstickOpen = Math.min(30, params.chopstickOpen + 1); gui.controllersRecursive().forEach(c=>c.updateDisplay()); break;
-    case '2': params.chopstickOpen = Math.max(2,  params.chopstickOpen - 1); gui.controllersRecursive().forEach(c=>c.updateDisplay()); break;
-    case 'q': params.qdYaw -= 1;  gui.controllersRecursive().forEach(c=>c.updateDisplay()); break;
-    case 'w': params.qdYaw += 1;  gui.controllersRecursive().forEach(c=>c.updateDisplay()); break;
-    case 'a': params.qdExtend = Math.max(0, params.qdExtend - 1); gui.controllersRecursive().forEach(c=>c.updateDisplay()); break;
-    case 's': params.qdExtend = Math.min(36, params.qdExtend + 1); gui.controllersRecursive().forEach(c=>c.updateDisplay()); break;
-    case 'z': params.topYaw -= 1; gui.controllersRecursive().forEach(c=>c.updateDisplay()); break;
-    case 'x': params.topYaw += 1; gui.controllersRecursive().forEach(c=>c.updateDisplay()); break;
+    case '1': params.chopstickOpen = Math.min(30, params.chopstickOpen + 1); break;
+    case '2': params.chopstickOpen = Math.max(2,  params.chopstickOpen - 1); break;
+    case 'q': params.qdYaw -= 1;  break;
+    case 'w': params.qdYaw += 1;  break;
+    case 'a': params.qdExtend = Math.max(0, params.qdExtend - 1); break;
+    case 's': params.qdExtend = Math.min(36, params.qdExtend + 1); break;
+    case 'z': params.topYaw -= 1; break;
+    case 'x': params.topYaw += 1; break;
   }
-  // trigger onChange handlers manually
+  // reflect updates
   f2.controllers[0].setValue(params.chopstickOpen);
   f3.controllers[0].setValue(params.qdYaw);
   f3.controllers[1].setValue(params.qdExtend);
