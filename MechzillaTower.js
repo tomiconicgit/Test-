@@ -1,13 +1,12 @@
-// MechzillaTower.js — Fresh start base + 4 detailed beams
-// Base: 30x30 bright metal slab
-// Beams: 4x4 cross-section, 60 high, with recessed "steel indent" panels on all faces
+// MechzillaTower.js — fresh base + 4 detailed beams (now visible!)
+// Base: 30x30 slab; Beams: 4x4 cross-section, 60 high with recessed panels
 
 export class MechzillaTower {
   constructor({
     baseSize = 30,
     baseThickness = 1,
     beamSize = 4,
-    beamHeight = 60,                    // ⬅️ raised from 40 → 60
+    beamHeight = 60,
     position = new THREE.Vector3(0, 0, 0)
   } = {}) {
     this.params = { baseSize, baseThickness, beamSize, beamHeight };
@@ -15,29 +14,33 @@ export class MechzillaTower {
     this.group.name = 'MechzillaTower';
     this.group.position.copy(position);
 
-    // Materials
-    const brightMetal = new THREE.MeshStandardMaterial({
-      color: 0xd9dee5, metalness: 1.0, roughness: 0.15
+    // Use "painted steel": NOT a perfect metal so it receives diffuse light
+    const shellMat = new THREE.MeshStandardMaterial({
+      color: 0xcfd6de,      // light steel
+      metalness: 0.25,      // ↓ from 1.0
+      roughness: 0.45       // ↑ so it doesn't look plastic
     });
-    const indentMetal = new THREE.MeshStandardMaterial({
-      color: 0xb8bec6, metalness: 0.85, roughness: 0.4
+    const panelMat = new THREE.MeshStandardMaterial({
+      color: 0xb7bec7,
+      metalness: 0.2,
+      roughness: 0.55
     });
 
-    // --- Base slab (30 x 30)
+    // Base slab
     const base = new THREE.Mesh(
       new THREE.BoxGeometry(baseSize, baseThickness, baseSize),
-      brightMetal
+      shellMat
     );
     base.position.y = baseThickness / 2;
     base.receiveShadow = true;
     base.name = 'towerBase';
     this.group.add(base);
 
-    // --- Corner beams with recessed panels
+    // Detailed beams
     const half = baseSize / 2 - beamSize / 2;
     const beamY = beamHeight / 2 + baseThickness;
 
-    const beam = this._makeDetailedBeam(beamSize, beamHeight, brightMetal, indentMetal);
+    const beam = this._makeDetailedBeam(beamSize, beamHeight, shellMat, panelMat);
 
     const b1 = beam.clone(); b1.position.set(+half, beamY, +half); b1.name = 'cornerBeam_1';
     const b2 = beam.clone(); b2.position.set(-half, beamY, +half); b2.name = 'cornerBeam_2';
@@ -47,49 +50,31 @@ export class MechzillaTower {
   }
 
   _makeDetailedBeam(size, height, shellMat, panelMat) {
-    // Base column
     const g = new THREE.Group();
 
     const shell = new THREE.Mesh(new THREE.BoxGeometry(size, height, size), shellMat);
     shell.castShadow = true; shell.receiveShadow = true;
     g.add(shell);
 
-    // Recessed panel dimensions (thin boxes slightly inset from each face)
-    const panelInset = Math.max(0.16, size * 0.12);      // margin from beam edges
-    const panelThick = 0.04;                              // very thin
-    const fudge = 0.01;                                   // avoid z-fighting
-    const panelHeight = height - 0.8;                     // leave a small top/bottom rim
-    const panelWidth  = size - panelInset * 2;
+    // Recessed panels (thin, slightly inset) on all four faces
+    const inset = Math.max(0.16, size * 0.12);
+    const thickness = 0.05;
+    const fudge = 0.02;
+    const h = height - 0.8;
+    const w = size - inset * 2;
 
-    // +X face
-    const px = new THREE.Mesh(
-      new THREE.BoxGeometry(panelThick, panelHeight, panelWidth),
-      panelMat
-    );
-    px.position.set(size / 2 - panelThick / 2 - fudge, 0, 0);
-    px.castShadow = px.receiveShadow = true;
+    const px = new THREE.Mesh(new THREE.BoxGeometry(thickness, h, w), panelMat);
+    px.position.set(size/2 - thickness/2 - fudge, 0, 0);
+    const nx = px.clone(); nx.position.x *= -1;
 
-    // -X face
-    const nx = px.clone();
-    nx.position.x *= -1;
+    const pz = new THREE.Mesh(new THREE.BoxGeometry(w, h, thickness), panelMat);
+    pz.position.set(0, 0, size/2 - thickness/2 - fudge);
+    const nz = pz.clone(); nz.position.z *= -1;
 
-    // +Z face
-    const pz = new THREE.Mesh(
-      new THREE.BoxGeometry(panelWidth, panelHeight, panelThick),
-      panelMat
-    );
-    pz.position.set(0, 0, size / 2 - panelThick / 2 - fudge);
-    pz.castShadow = pz.receiveShadow = true;
-
-    // -Z face
-    const nz = pz.clone();
-    nz.position.z *= -1;
-
-    g.add(px, nx, pz, nz);
+    [px, nx, pz, nz].forEach(m => { m.castShadow = m.receiveShadow = true; g.add(m); });
     return g;
   }
 
   addTo(scene) { scene.add(this.group); }
-
-  update() { /* no animation yet */ }
+  update() {}
 }
