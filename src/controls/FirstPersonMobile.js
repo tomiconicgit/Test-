@@ -29,7 +29,7 @@ export class FirstPersonMobile {
     this.collision = null;
 
     // Spawn
-    const spawn = opts.spawn ?? new THREE.Vector3(0, 10, 6); // Changed Y from this.eyeHeight + 1.0 to 10
+    const spawn = opts.spawn ?? new THREE.Vector3(0, 5, 10); // Use spawn option or a safe default
     this.camera.position.copy(spawn);
 
     // Inputs
