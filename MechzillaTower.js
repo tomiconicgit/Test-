@@ -1,4 +1,4 @@
-// MechzillaTower.js — fresh base + 4 detailed beams (visible, not washed out)
+// MechzillaTower.js — fresh base + 4 detailed beams (contrast materials)
 // Base: 30x30 slab; Beams: 4x4 cross-section, 60 high with recessed panels
 
 export class MechzillaTower {
@@ -13,16 +13,16 @@ export class MechzillaTower {
     this.group.position.copy(position);
     this.group.name = 'MechzillaTower';
 
-    // Painted steel — takes diffuse light (no env map needed)
+    // Painted steel — takes diffuse light (works without env map)
     const shellMat = new THREE.MeshStandardMaterial({
-      color: 0x9ca6b2,   // medium steel grey
-      metalness: 0.25,
-      roughness: 0.5
-    });
-    const panelMat = new THREE.MeshStandardMaterial({
-      color: 0x8d97a3,   // slightly darker recess
+      color: 0x6e7a86,   // darker steel grey for contrast
       metalness: 0.2,
       roughness: 0.6
+    });
+    const panelMat = new THREE.MeshStandardMaterial({
+      color: 0x5f6975,   // slightly darker recess
+      metalness: 0.2,
+      roughness: 0.65
     });
 
     // --- Base slab (30 x 30)
