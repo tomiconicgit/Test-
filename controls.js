@@ -57,7 +57,6 @@ export class Controls {
         
         window.addEventListener('resize', this.onResize.bind(this));
 
-        // --- FIX: Changed from 'click' to 'touchstart' for reliability ---
         document.getElementById('dig-button').addEventListener('touchstart', (e) => {
             e.preventDefault();
             this.dig();
@@ -83,30 +82,35 @@ export class Controls {
     }
 
     onTouchStart(e) {
-        e.preventDefault();
         for (const touch of e.changedTouches) {
             const isOverJoystick = Math.sqrt(
                 (touch.clientX - this.center.x) ** 2 + 
                 (touch.clientY - this.center.y) ** 2
             ) < this.radius * 1.5;
 
-            // Only start a joystick or look touch if not touching a button
             const targetElement = document.elementFromPoint(touch.clientX, touch.clientY);
             const isButton = targetElement && targetElement.closest('.action-button, #block-select');
 
-            if (!isButton) {
-                if (this.joystickTouchId === null && isOverJoystick) {
-                    this.joystickTouchId = touch.identifier;
-                    this.updateDirection(touch);
-                } else if (this.lookTouchId === null) {
-                    this.lookTouchId = touch.identifier;
-                    this.lookPrev.set(touch.clientX, touch.clientY);
-                }
+            if (isButton) {
+                // Let the button's own event listener handle it
+                continue;
+            }
+
+            // If it's not a button, we can prevent default for joystick/look
+            e.preventDefault();
+
+            if (this.joystickTouchId === null && isOverJoystick) {
+                this.joystickTouchId = touch.identifier;
+                this.updateDirection(touch);
+            } else if (this.lookTouchId === null) {
+                this.lookTouchId = touch.identifier;
+                this.lookPrev.set(touch.clientX, touch.clientY);
             }
         }
     }
 
     onTouchMove(e) {
+        // We can safely prevent default here because this only fires for active joystick/look touches
         e.preventDefault();
         for (const touch of e.touches) {
             if (touch.identifier === this.joystickTouchId) {
