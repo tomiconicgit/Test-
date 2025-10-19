@@ -1,11 +1,7 @@
 // src/Blocks.js
 import * as THREE from 'three';
 
-export const BLOCK = {
-  AIR: 0,
-  CONCRETE: 1,
-  METAL: 2,
-};
+export const BLOCK = { AIR:0, CONCRETE:1, METAL:2 };
 
 export class BlockLibrary {
   constructor(assetsBase = './assets/') {
@@ -15,28 +11,22 @@ export class BlockLibrary {
   }
 
   async load() {
-    // Concrete: simple PBR-ish flat with slight roughness
+    // Concrete (default terrain)
     const concreteMat = new THREE.MeshStandardMaterial({
-      color: 0x9ea3aa,
-      roughness: 0.85,
-      metalness: 0.0,
+      color: 0x9ea3aa, roughness: 0.85, metalness: 0.0
     });
 
-    // Metal: use provided maps
-    const [
-      albedo, normal, ao, height, metalness
-    ] = await Promise.all([
+    // Metal PBR maps
+    const [albedo, normal, ao, height, metalness] = await Promise.all([
       this._tex('metal_albedo.png', true),
       this._tex('metal_normal.png'),
       this._tex('metal_ao.png'),
       this._tex('metal_height.png'),
       this._tex('metal_metallic.png'),
     ]);
-
-    // Repeat & correct encoding for color
-    [albedo, ao, metalness].forEach(t => { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4; });
-    normal.wrapS = normal.wrapT = THREE.RepeatWrapping;
-    height.wrapS = height.wrapT = THREE.RepeatWrapping;
+    [albedo, ao, metalness].forEach(t=>{ t.wrapS=t.wrapT=THREE.RepeatWrapping; t.anisotropy=4; });
+    normal.wrapS=normal.wrapT=THREE.RepeatWrapping;
+    height.wrapS=height.wrapT=THREE.RepeatWrapping;
 
     const metalMat = new THREE.MeshStandardMaterial({
       map: albedo,
@@ -47,24 +37,21 @@ export class BlockLibrary {
       roughness: 0.35,
     });
 
-    // Keep a single box geometry with uv2 for aoMap
+    // Share a unit cube with uv2 for ao
     const geom = new THREE.BoxGeometry(1,1,1);
-    // duplicate UVs to uv2 for aoMap
     geom.setAttribute('uv2', new THREE.BufferAttribute(geom.attributes.uv.array, 2));
 
     this.materials[BLOCK.CONCRETE] = { material: concreteMat, geometry: geom };
-    this.materials[BLOCK.METAL]     = { material: metalMat,     geometry: geom };
-
+    this.materials[BLOCK.METAL]    = { material: metalMat,     geometry: geom };
     return this.materials;
   }
 
-  _tex(name, sRGB=false) {
-    return new Promise((resolve, reject) => {
+  _tex(name, sRGB=false){
+    return new Promise((res,rej)=>{
       this.loader.load(
         this.assetsBase + name,
-        t => { if (sRGB) t.colorSpace = THREE.SRGBColorSpace; resolve(t); },
-        undefined,
-        reject
+        t=>{ if(sRGB) t.colorSpace = THREE.SRGBColorSpace; res(t); },
+        undefined, rej
       );
     });
   }
