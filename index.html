@@ -8,23 +8,23 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <style>
-    html, body { margin:0; height:100%; overflow:hidden; background:#0b0c10; touch-action:none; }
-    canvas { display:block; }
-    #hud { position:fixed; inset:0; pointer-events:none; }
-    .joystick { position:absolute; left:24px; bottom:24px; width:140px; height:140px; pointer-events:auto; border-radius:50%; background:rgba(255,255,255,0.06); backdrop-filter:blur(8px); }
-    .stick { position:absolute; left:50%; top:50%; width:72px; height:72px; transform:translate(-50%,-50%); border-radius:50%; background:rgba(255,255,255,0.18); }
-    .btn { position:absolute; right:24px; bottom:24px; width:84px; height:84px; border-radius:18px; background:rgba(255,255,255,0.08); backdrop-filter:blur(8px); pointer-events:auto; display:flex; align-items:center; justify-content:center; font-family:system-ui,-apple-system,Inter,Arial,sans-serif; color:#fff; font-weight:600; user-select:none; }
-    .btn.dig { right:124px; }
-    .btn:active { background:rgba(255,255,255,0.16); }
-    .block-select { position:absolute; right:24px; bottom:128px; pointer-events:auto; display:flex; gap:10px; }
-    .swatch { width:40px; height:40px; border-radius:10px; border:2px solid rgba(255,255,255,0.2); box-shadow:0 0 0 2px transparent inset; cursor:pointer; }
-    .swatch.active { box-shadow:0 0 0 2px #fff inset; }
-    .crosshair { position:fixed; left:50%; top:50%; width:2px; height:2px; background:#fff; opacity:.9; box-shadow:0 0 0 8px rgba(255,255,255,0.04); transform:translate(-50%,-50%); border-radius:50%; }
-    .fps { position:fixed; left:12px; top:8px; color:#b8c0cc; font:12px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace; opacity:.8; background:rgba(0,0,0,.35); padding:6px 8px; border-radius:8px; pointer-events:none; }
-    #err { position:fixed; left:8px; right:8px; bottom:8px; max-height:45%; overflow:auto; font:12px/1.4 ui-monospace,monospace; white-space:pre-wrap; color:#fff; background:#300; padding:8px; border-radius:8px; display:none; }
+    html,body{margin:0;height:100%;overflow:hidden;background:#0b0c10;touch-action:none}
+    canvas{display:block}
+    #hud{position:fixed;inset:0;pointer-events:none}
+    .joystick{position:absolute;left:24px;bottom:24px;width:140px;height:140px;pointer-events:auto;border-radius:50%;background:rgba(255,255,255,.06);backdrop-filter:blur(8px)}
+    .stick{position:absolute;left:50%;top:50%;width:72px;height:72px;transform:translate(-50%,-50%);border-radius:50%;background:rgba(255,255,255,.18)}
+    .btn{position:absolute;right:24px;bottom:24px;width:84px;height:84px;border-radius:18px;background:rgba(255,255,255,.08);backdrop-filter:blur(8px);pointer-events:auto;display:flex;align-items:center;justify-content:center;font-family:system-ui,-apple-system,Inter,Arial,sans-serif;color:#fff;font-weight:600;user-select:none}
+    .btn.dig{right:124px}
+    .btn:active{background:rgba(255,255,255,.16)}
+    .block-select{position:absolute;right:24px;bottom:128px;pointer-events:auto;display:flex;gap:10px}
+    .swatch{width:40px;height:40px;border-radius:10px;border:2px solid rgba(255,255,255,.2);box-shadow:0 0 0 2px transparent inset;cursor:pointer}
+    .swatch.active{box-shadow:0 0 0 2px #fff inset}
+    .crosshair{position:fixed;left:50%;top:50%;width:2px;height:2px;background:#fff;opacity:.9;box-shadow:0 0 0 8px rgba(255,255,255,.04);transform:translate(-50%,-50%);border-radius:50%}
+    .fps{position:fixed;left:12px;top:8px;color:#b8c0cc;font:12px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;opacity:.8;background:rgba(0,0,0,.35);padding:6px 8px;border-radius:8px;pointer-events:none}
+    #err{position:fixed;left:8px;right:8px;bottom:8px;max-height:45%;overflow:auto;font:12px/1.4 ui-monospace,monospace;white-space:pre-wrap;color:#fff;background:#300;padding:8px;border-radius:8px;display:none}
   </style>
 
-  <!-- Import map resolves "three" for all modules -->
+  <!-- Import map for modules -->
   <script type="importmap">
   {
     "imports": {
@@ -40,25 +40,25 @@
     <div class="btn" id="btn-place">PLACE</div>
     <div class="block-select" id="block-select"></div>
     <div class="crosshair"></div>
-    <div class="fps" id="fps">…</div>
+    <div class="fps" id="fps">...</div>
   </div>
   <div id="err"></div>
 
-  <!-- Error trap (so failures are visible on-device) -->
+  <!-- Error panel -->
   <script>
     (function(){
-      const box = document.getElementById('err');
-      const show = (msg) => { box.style.display='block'; box.textContent += msg + '\n'; };
-      window.addEventListener('error', e => show('[Error] ' + (e.message || e.error)));
-      window.addEventListener('unhandledrejection', e => show('[Promise] ' + (e.reason && (e.reason.stack || e.reason.message) || e)));
+      const box=document.getElementById('err');
+      const show=m=>{box.style.display='block';box.textContent+=m+'\n'};
+      window.addEventListener('error',e=>show('[Error] '+(e.message||e.error)));
+      window.addEventListener('unhandledrejection',e=>show('[Promise] '+(e.reason&&(e.reason.stack||e.reason.message)||e)));
     })();
   </script>
 
   <!-- Boot -->
   <script type="module">
     import { FILES } from './Main.js';
-    const modules = {};
-    for (const path of FILES) modules[path] = await import(path);
+    const modules={};
+    for (const path of FILES) modules[path]=await import(path);
     await modules['./src/Game.js'].Game.init({
       modules,
       assetsBase: './assets/',
