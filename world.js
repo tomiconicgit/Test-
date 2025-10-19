@@ -91,7 +91,6 @@ export class World {
         chunk.data[this.localIndex(lx, ly, lz)] = type;
         chunk.dirty = true;
         
-        // Mark neighboring chunks as dirty if block is on a chunk edge
         if (lx === 0) this.markDirty(cx - 1, cy, cz);
         if (lx === this.chunkSizeX - 1) this.markDirty(cx + 1, cy, cz);
         if (ly === 0) this.markDirty(cx, cy - 1, cz);
@@ -106,13 +105,10 @@ export class World {
     }
 
     generate() {
-        // Generate simple rolling hills
+        // Generate a flat plane at y=0
         for (let x = 0; x < this.sizeX; x++) {
             for (let z = 0; z < this.sizeZ; z++) {
-                const height = Math.floor(Math.sin(x / 20) * 5 + Math.cos(z / 15) * 4) + 8;
-                for (let y = this.minY; y <= height; y++) {
-                    this.setBlock(x, y, z, 1);
-                }
+                this.setBlock(x, 0, z, 1);
             }
         }
         this.rebuildDirtyChunks();
@@ -132,7 +128,6 @@ export class World {
         const chunk = this.chunks.get(this.getChunkKey(cx, cy, cz));
         if (!chunk) return;
 
-        // Clear existing meshes
         chunk.meshes.forEach(mesh => {
             this.scene.remove(mesh);
             const index = this.blockMeshes.indexOf(mesh);
@@ -142,20 +137,17 @@ export class World {
         chunk.meshes = [];
 
         const cubeFaces = [
-            { normal: [1, 0, 0], corners: [[1, 0, 0], [1, 1, 0], [1, 1, 1], [1, 0, 1]] }, // right (+x)
-            { normal: [-1, 0, 0], corners: [[0, 0, 1], [0, 1, 1], [0, 1, 0], [0, 0, 0]] }, // left (-x)
-            { normal: [0, 1, 0], corners: [[0, 1, 1], [1, 1, 1], [1, 1, 0], [0, 1, 0]] }, // top (+y)
-            { normal: [0, -1, 0], corners: [[0, 0, 0], [1, 0, 0], [1, 0, 1], [0, 0, 1]] }, // bottom (-y)
-            { normal: [0, 0, 1], corners: [[1, 0, 1], [1, 1, 1], [0, 1, 1], [0, 0, 1]] }, // back (+z)
-            { normal: [0, 0, -1], corners: [[0, 0, 0], [0, 1, 0], [1, 1, 0], [1, 0, 0]] }  // front (-z)
+            { normal: [1, 0, 0], corners: [[1, 0, 0], [1, 1, 0], [1, 1, 1], [1, 0, 1]] },
+            { normal: [-1, 0, 0], corners: [[0, 0, 1], [0, 1, 1], [0, 1, 0], [0, 0, 0]] },
+            { normal: [0, 1, 0], corners: [[0, 1, 1], [1, 1, 1], [1, 1, 0], [0, 1, 0]] },
+            { normal: [0, -1, 0], corners: [[0, 0, 0], [1, 0, 0], [1, 0, 1], [0, 0, 1]] },
+            { normal: [0, 0, 1], corners: [[1, 0, 1], [1, 1, 1], [0, 1, 1], [0, 0, 1]] },
+            { normal: [0, 0, -1], corners: [[0, 0, 0], [0, 1, 0], [1, 1, 0], [1, 0, 0]] }
         ];
         const uvsForQuad = [[0, 0], [0, 1], [1, 1], [1, 0]];
 
         for (let type = 1; type < this.materials.length; type++) {
-            const positions = [];
-            const normals = [];
-            const uvs = [];
-            const indices = [];
+            const positions = [], normals = [], uvs = [], indices = [];
 
             for (let lx = 0; lx < this.chunkSizeX; lx++) {
                 for (let ly = 0; ly < this.chunkSizeY; ly++) {
@@ -198,3 +190,4 @@ export class World {
         }
     }
 }
+
