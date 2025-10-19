@@ -10,6 +10,9 @@ class Game {
         this.cameraRig = new CameraRig();
         this.renderer = this.cameraRig.renderer;
 
+        this.raycaster = new THREE.Raycaster();
+        this.playerHeight = 1.7; // Standard height for a first-person character.
+
         this.setupWorld();
         this.joystick = new Joystick(document.getElementById('joystick-container'), document.getElementById('joystick-handle'));
         
@@ -27,30 +30,55 @@ class Game {
 
         setupLighting(this.scene);
         
-        // Add camera to the scene
         this.scene.add(this.cameraRig.camera);
-        this.cameraRig.camera.position.y = 1.7; // Player height
+        // Set the initial player height above the ground (at y=0).
+        this.cameraRig.camera.position.y = this.playerHeight;
     }
 
     handleControls(deltaTime) {
-        const moveSpeed = 5 * deltaTime; // units per second
-        const rotateSpeed = 1.5 * deltaTime;
+        const moveSpeed = 5 * deltaTime; // Player moves 5 units per second.
 
         if (this.joystick.isActive) {
-            const forward = this.joystick.vertical;
-            const turn = this.joystick.horizontal;
+            const forwardMovement = this.joystick.vertical;
+            const strafeMovement = this.joystick.horizontal;
+            
+            // Get the horizontal direction the camera is facing.
+            const direction = new THREE.Vector3();
+            this.cameraRig.camera.getWorldDirection(direction);
+            direction.y = 0; // We only want movement on the XZ plane.
+            direction.normalize();
 
-            if (forward !== 0) {
-                const direction = new THREE.Vector3();
-                this.cameraRig.camera.getWorldDirection(direction);
-                this.cameraRig.camera.position.addScaledVector(direction, -forward * moveSpeed);
+            // Calculate the strafe direction (90 degrees to the right).
+            const strafeDirection = direction.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 2);
+
+            // Calculate the total movement vector for this frame.
+            const moveVector = new THREE.Vector3();
+            if (forwardMovement !== 0) {
+                moveVector.addScaledVector(direction, -forwardMovement * moveSpeed);
             }
-            if (turn !== 0) {
-                const strafeDirection = new THREE.Vector3();
-                this.cameraRig.camera.getWorldDirection(strafeDirection);
-                const axis = new THREE.Vector3(0, 1, 0);
-                strafeDirection.applyAxisAngle(axis, Math.PI / 2);
-                this.cameraRig.camera.position.addScaledVector(strafeDirection, -turn * moveSpeed);
+            if (strafeMovement !== 0) {
+                moveVector.addScaledVector(strafeDirection, -strafeMovement * moveSpeed);
+            }
+            
+            // Apply the movement to the camera's position.
+            this.cameraRig.camera.position.add(moveVector);
+        }
+
+        // --- Terrain Collision Logic ---
+        const terrain = this.scene.getObjectByName("terrain");
+        if (terrain) {
+            // Set the raycaster to point straight down from the player's current XZ position.
+            // We start the ray from high up to ensure it's above any potential hills.
+            const rayOrigin = new THREE.Vector3(this.cameraRig.camera.position.x, 50, this.cameraRig.camera.position.z);
+            this.raycaster.set(rayOrigin, new THREE.Vector3(0, -1, 0));
+
+            const intersects = this.raycaster.intersectObject(terrain);
+
+            if (intersects.length > 0) {
+                // If the ray hits the terrain, move the camera to the intersection point 
+                // plus the defined player height.
+                const groundY = intersects[0].point.y;
+                this.cameraRig.camera.position.y = groundY + this.playerHeight;
             }
         }
     }
@@ -85,4 +113,5 @@ window.addEventListener('DOMContentLoaded', () => {
 
     new Game();
 });
+
 
