@@ -1,27 +1,62 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js';
+import { Sky } from 'https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/objects/Sky.js';
 import { World } from './world.js';
 import { Controls } from './controls.js';
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x87ceeb); 
-scene.fog = new THREE.Fog(0x87ceeb, 0, 150);
 
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 200);
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(window.devicePixelRatio);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
 document.body.appendChild(renderer.domElement);
 
-// Make renderer accessible to other components
 scene.renderer = renderer;
+
+// --- Nice Sky Implementation ---
+const sky = new Sky();
+sky.scale.setScalar(450000);
+scene.add(sky);
+
+const sun = new THREE.Vector3();
+
+const effectController = {
+    turbidity: 10,
+    rayleigh: 3,
+    mieCoefficient: 0.005,
+    mieDirectionalG: 0.7,
+    elevation: 4,
+    azimuth: 180,
+    exposure: renderer.toneMappingExposure
+};
+
+function updateSky() {
+    const uniforms = sky.material.uniforms;
+    uniforms['turbidity'].value = effectController.turbidity;
+    uniforms['rayleigh'].value = effectController.rayleigh;
+    uniforms['mieCoefficient'].value = effectController.mieCoefficient;
+    uniforms['mieDirectionalG'].value = effectController.mieDirectionalG;
+
+    const phi = THREE.MathUtils.degToRad(90 - effectController.elevation);
+    const theta = THREE.MathUtils.degToRad(effectController.azimuth);
+
+    sun.setFromSphericalCoords(1, phi, theta);
+
+    uniforms['sunPosition'].value.copy(sun);
+    renderer.toneMappingExposure = effectController.exposure;
+}
+updateSky();
+// --- End Sky ---
 
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
 scene.add(ambientLight);
 const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
-directionalLight.position.set(50, 100, 25);
+directionalLight.position.copy(sun).multiplyScalar(100); // Align light with sun
 directionalLight.castShadow = true;
 scene.add(directionalLight);
+
 
 const world = new World(scene, 100, 100, -30, 30);
 world.generate();
@@ -43,4 +78,5 @@ function animate() {
 }
 
 animate();
+
 
