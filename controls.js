@@ -50,7 +50,6 @@ export class Controls {
     }
     
     addEventListeners() {
-        // Use the body for touch listeners to catch touches anywhere on screen
         document.body.addEventListener('touchstart', this.onTouchStart.bind(this), { passive: false });
         document.body.addEventListener('touchmove', this.onTouchMove.bind(this), { passive: false });
         document.body.addEventListener('touchend', this.onTouchEnd.bind(this));
@@ -58,9 +57,19 @@ export class Controls {
         
         window.addEventListener('resize', this.onResize.bind(this));
 
-        document.getElementById('dig-button').addEventListener('click', this.dig.bind(this));
-        document.getElementById('place-button').addEventListener('click', this.place.bind(this));
-        document.getElementById('jump-button').addEventListener('click', this.jump.bind(this));
+        // --- FIX: Changed from 'click' to 'touchstart' for reliability ---
+        document.getElementById('dig-button').addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            this.dig();
+        });
+        document.getElementById('place-button').addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            this.place();
+        });
+        document.getElementById('jump-button').addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            this.jump();
+        });
         
         this.blockSelect.addEventListener('change', () => {
             this.currentBlock = parseInt(this.blockSelect.value);
@@ -81,16 +90,18 @@ export class Controls {
                 (touch.clientY - this.center.y) ** 2
             ) < this.radius * 1.5;
 
-            if (this.joystickTouchId === null && isOverJoystick) {
-                this.joystickTouchId = touch.identifier;
-                this.updateDirection(touch);
-            } else if (this.lookTouchId === null) {
-                const targetElement = document.elementFromPoint(touch.clientX, touch.clientY);
-                if (targetElement && targetElement.closest('.action-button, #block-select, #joystick')) {
-                    continue;
+            // Only start a joystick or look touch if not touching a button
+            const targetElement = document.elementFromPoint(touch.clientX, touch.clientY);
+            const isButton = targetElement && targetElement.closest('.action-button, #block-select');
+
+            if (!isButton) {
+                if (this.joystickTouchId === null && isOverJoystick) {
+                    this.joystickTouchId = touch.identifier;
+                    this.updateDirection(touch);
+                } else if (this.lookTouchId === null) {
+                    this.lookTouchId = touch.identifier;
+                    this.lookPrev.set(touch.clientX, touch.clientY);
                 }
-                this.lookTouchId = touch.identifier;
-                this.lookPrev.set(touch.clientX, touch.clientY);
             }
         }
     }
@@ -204,7 +215,6 @@ export class Controls {
         this.velocity.y -= this.gravity * delta;
 
         const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(this.yaw.quaternion);
-        // --- JOYSTICK FIX: Changed cross product order to get correct 'right' vector ---
         const right = new THREE.Vector3().crossVectors(forward, this.camera.up).normalize();
         
         const moveForward = forward.clone().multiplyScalar(-this.direction.y * this.moveSpeed * delta);
