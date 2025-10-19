@@ -57,18 +57,9 @@ export class Controls {
         
         window.addEventListener('resize', this.onResize.bind(this));
 
-        document.getElementById('dig-button').addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            this.dig();
-        });
-        document.getElementById('place-button').addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            this.place();
-        });
-        document.getElementById('jump-button').addEventListener('touchstart', (e) => {
-            e.preventDefault();
-            this.jump();
-        });
+        document.getElementById('dig-button').addEventListener('touchstart', (e) => { e.preventDefault(); this.dig(); });
+        document.getElementById('place-button').addEventListener('touchstart', (e) => { e.preventDefault(); this.place(); });
+        document.getElementById('jump-button').addEventListener('touchstart', (e) => { e.preventDefault(); this.jump(); });
         
         this.blockSelect.addEventListener('change', () => {
             this.currentBlock = parseInt(this.blockSelect.value);
@@ -83,26 +74,25 @@ export class Controls {
 
     onTouchStart(e) {
         for (const touch of e.changedTouches) {
+            const targetElement = document.elementFromPoint(touch.clientX, touch.clientY);
+            const isButton = targetElement && targetElement.closest('.action-button, #block-select');
+            
+            // If touch is on a button, ignore it here and let its own listener handle it.
+            if (isButton) continue;
+
+            // Check if the touch is for the joystick
             const isOverJoystick = Math.sqrt(
                 (touch.clientX - this.center.x) ** 2 + 
                 (touch.clientY - this.center.y) ** 2
             ) < this.radius * 1.5;
 
-            const targetElement = document.elementFromPoint(touch.clientX, touch.clientY);
-            const isButton = targetElement && targetElement.closest('.action-button, #block-select');
-
-            if (isButton) {
-                // Let the button's own event listener handle it
-                continue;
-            }
-
-            // If it's not a button, we can prevent default for joystick/look
-            e.preventDefault();
-
+            // --- FIX: Moved e.preventDefault() to only trigger for game controls ---
             if (this.joystickTouchId === null && isOverJoystick) {
+                e.preventDefault();
                 this.joystickTouchId = touch.identifier;
                 this.updateDirection(touch);
             } else if (this.lookTouchId === null) {
+                e.preventDefault();
                 this.lookTouchId = touch.identifier;
                 this.lookPrev.set(touch.clientX, touch.clientY);
             }
@@ -110,7 +100,6 @@ export class Controls {
     }
 
     onTouchMove(e) {
-        // We can safely prevent default here because this only fires for active joystick/look touches
         e.preventDefault();
         for (const touch of e.touches) {
             if (touch.identifier === this.joystickTouchId) {
