@@ -1,4 +1,3 @@
-<!-- index.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -16,27 +15,31 @@
 
   <style>
     :root { --ui-bg: rgba(20,20,24,0.6); --ui-card: rgba(30,30,36,0.7); --ui-fg:#fff; }
-    html, body { height: 100%; background:#000; margin:0; overflow:hidden; }
-    canvas { display:block; }
+    html, body { height:100%; margin:0; background:#000; overflow:hidden; }
+    /* Canvas is pushed behind UI; JS also enforces this */
+    canvas { position:fixed; inset:0; z-index:0; display:block; }
 
     /* Joystick (left) */
     #joystick-container{
-      position:absolute; bottom:20px; left:20px; width:120px; height:120px;
+      position:fixed; bottom:20px; left:20px; width:120px; height:120px; z-index:1000;
       background:var(--ui-bg); border:1px solid rgba(255,255,255,0.15);
       border-radius:50%; display:flex; justify-content:center; align-items:center;
       backdrop-filter: blur(8px);
+      -webkit-touch-callout: none; -webkit-user-select: none; user-select: none;
+      touch-action: none;
     }
     #joystick-handle{ width:60px; height:60px; background:rgba(255,255,255,0.45); border-radius:50%; }
 
-    /* Tower UI (right) */
+    /* Mechzilla controls (right) */
     #tower-ui{
-      position:absolute; right:16px; bottom:20px; z-index:10;
+      position:fixed; right:16px; bottom:20px; z-index:1001;
       display:flex; flex-direction:column; gap:10px; padding:12px; width:min(260px, 46vw);
       background:var(--ui-card); border:1px solid rgba(255,255,255,0.12); border-radius:14px;
-      color:var(--ui-fg); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, system-ui, sans-serif;
+      color:var(--ui-fg); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,system-ui,sans-serif;
       backdrop-filter: blur(10px);
+      touch-action: manipulation;  /* allow taps/drags without being blocked by doc handlers */
+      -webkit-touch-callout: none; -webkit-user-select: none; user-select: none;
     }
-    #tower-ui, #tower-ui * { touch-action: manipulation; } /* ensures slider works on touch */
     #tower-ui button{
       padding:12px 14px; border:none; border-radius:12px; font-weight:700; color:#fff;
       background:#1f6feb; cursor:pointer;
