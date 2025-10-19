@@ -1,25 +1,32 @@
-// MechzillaTower.js — 15x15 mast, solid carriage, STRAIGHT truss chopsticks (three r128)
+// MechzillaTower.js — 15x15 mast, SQUARE carriage brace (front-mounted hinges), straight truss arms
+// three r128
 
 export class MechzillaTower {
   constructor({
     height = 75,
-    baseSize = 15,            // mast footprint
+    baseSize = 15,            // mast footprint (15x15)
     // Mast beam sizes
     post = 1.2,
     ring = 0.8,
-    // Chopstick straight beam
+    // Carriage brace
+    braceDepth = 2.6,         // Z depth of the square brace box
+    braceWall  = 1.0,         // thickness of brace beams
+    // Chopsticks (straight truss)
     armLength = 28,
-    armWidth  = 3.0,          // box-truss width
-    armDepth  = 2.4,          // box-truss depth
-    chord     = 0.5,          // corner chord thickness
-    brace     = 0.32,         // X-brace thickness
-    panelStep = 2.4,          // panel spacing
-    tipLen    = 3.0,          // end pad length
+    armWidth  = 3.0,
+    armDepth  = 2.4,
+    chord     = 0.5,
+    brace     = 0.32,
+    panelStep = 2.4,
+    tipLen    = 3.0,
     maxOpenDeg = 62,
     position = new THREE.Vector3(0, 0, -18)
   } = {}) {
 
-    this.params = { height, baseSize, post, ring, armLength, armWidth, armDepth, chord, brace, panelStep, tipLen, maxOpenDeg };
+    this.params = {
+      height, baseSize, post, ring, braceDepth, braceWall,
+      armLength, armWidth, armDepth, chord, brace, panelStep, tipLen, maxOpenDeg
+    };
 
     this.group = new THREE.Group();
     this.group.position.copy(position);
@@ -33,28 +40,31 @@ export class MechzillaTower {
     const steel = new THREE.MeshStandardMaterial({ color: 0x1a1d20, metalness: 0.9, roughness: 0.38 });
     const dark  = new THREE.MeshStandardMaterial({ color: 0x0d0f11, metalness: 0.6, roughness: 0.5 });
 
-    // Base
+    // --- Base
     const base = new THREE.Mesh(new THREE.BoxGeometry(baseSize * 1.25, 2.2, baseSize * 1.25), dark);
     base.position.y = 1.1; base.receiveShadow = true;
     this.group.add(base);
 
-    // Mast 15x15
+    // --- Mast 15×15 (solid-beam style)
     const mast = this._buildSolidMast(steel);
     this.group.add(mast);
 
-    // Solid carriage
-    const carriage = this._buildCarriage(steel);
+    // --- Square carriage brace that wraps the mast
+    const carriage = this._buildSquareBrace(steel);
     carriage.position.y = this.state.armHeight;
     mast.add(carriage);
     this.carriage = carriage;
 
-    // Hinges
-    const hingeOffset = baseSize * 0.60;
-    const leftRoot  = new THREE.Group();  leftRoot.position.set(-hingeOffset, 0, 0);
-    const rightRoot = new THREE.Group(); rightRoot.position.set( hingeOffset, 0, 0);
+    // Hinge roots go on the **front face** of the square brace (z = +braceDepth/2)
+    const outer = this._braceOuter();                 // outer width of brace (matches mast + wall*2)
+    const hingeZ = this.params.braceDepth / 2;        // front face
+    const hingeX = (outer / 2) - this.params.braceWall / 2;
+
+    const leftRoot  = new THREE.Group();  leftRoot.position.set(-hingeX, 0, hingeZ);
+    const rightRoot = new THREE.Group(); rightRoot.position.set( hingeX, 0, hingeZ);
     carriage.add(leftRoot, rightRoot);
 
-    // STRAIGHT truss chopsticks (built along +Z)
+    // STRAIGHT truss chopsticks (along +Z)
     const leftArm  = this._buildStraightTrussArm(steel);
     const rightArm = this._buildStraightTrussArm(steel);
     leftRoot.add(leftArm); rightRoot.add(rightArm);
@@ -76,6 +86,14 @@ export class MechzillaTower {
 
     this.anim = { leftHinge: leftRoot, rightHinge: rightRoot, carriage };
     this._applyOpenAmount(1);
+  }
+
+  // ===== helpers =====
+  _braceOuter() {
+    const { baseSize, post, braceWall } = this.params;
+    // Mast outer ≈ baseSize - small margin; brace wraps around with wall on each side
+    const mastOuter = baseSize - post * 0.8;
+    return mastOuter + braceWall * 2;
   }
 
   // ===== BUILDERS =====
@@ -111,25 +129,42 @@ export class MechzillaTower {
     return g;
   }
 
-  _buildCarriage(mat) {
-    const { baseSize, ring } = this.params;
+  // Square “wrap” brace (four beams making a rectangular tube; no circles)
+  _buildSquareBrace(mat) {
+    const { braceDepth, braceWall } = this.params;
+    const outer = this._braceOuter();
+    const halfO = outer / 2;
     const c = new THREE.Group(); c.name = 'carriage';
 
-    const plateW = baseSize * 0.5;
-    const plate = new THREE.Mesh(new THREE.BoxGeometry(plateW, 2.2, ring*3.0), mat);
-    const pL = plate.clone(); pL.position.set(-baseSize*0.45, 0, 0);
-    const pR = plate.clone(); pR.position.set( baseSize*0.45, 0, 0);
-    [pL,pR].forEach(m=>{ m.castShadow=m.receiveShadow=true; c.add(m); });
+    // Build a rectangular tube with four beams (front & back frames connected by short webs)
+    // Front frame (z = +braceDepth/2)
+    const beamX = new THREE.BoxGeometry(outer, braceWall, braceDepth);
+    const beamY = new THREE.BoxGeometry(braceWall, outer, braceDepth);
 
-    const xBeam = new THREE.Mesh(new THREE.BoxGeometry(baseSize*1.2, 2.0, ring*2.2), mat);
-    xBeam.position.set(0, 0, 0);
-    xBeam.castShadow = xBeam.receiveShadow = true;
-    c.add(xBeam);
+    const topF = new THREE.Mesh(beamX, mat); topF.position.set(0, +halfO, 0);
+    const botF = new THREE.Mesh(beamX, mat); botF.position.set(0, -halfO, 0);
+    const leftF= new THREE.Mesh(beamY, mat); leftF.position.set(-halfO, 0, 0);
+    const rightF=new THREE.Mesh(beamY, mat); rightF.position.set(+halfO, 0, 0);
+    [topF,botF,leftF,rightF].forEach(m=>{ m.castShadow=m.receiveShadow=true; c.add(m); });
 
-    const ringVis = new THREE.Mesh(new THREE.TorusGeometry(baseSize*0.66, 0.22, 10, 28), mat);
-    ringVis.rotation.x = Math.PI/2; ringVis.position.z = -ring*1.1;
-    ringVis.castShadow = ringVis.receiveShadow = true;
-    c.add(ringVis);
+    // Back frame (thin links so it looks boxy)
+    const linkDepth = Math.max(0.6, braceDepth * 0.45);
+    const linkX = new THREE.Mesh(new THREE.BoxGeometry(outer, braceWall, linkDepth), mat);
+    const linkY = new THREE.Mesh(new THREE.BoxGeometry(braceWall, outer, linkDepth), mat);
+
+    const topB = linkX.clone();  topB.position.set(0, +halfO, -braceDepth/2 + linkDepth/2);
+    const botB = linkX.clone();  botB.position.set(0, -halfO, -braceDepth/2 + linkDepth/2);
+    const leftB= linkY.clone(); leftB.position.set(-halfO, 0, -braceDepth/2 + linkDepth/2);
+    const rightB=linkY.clone(); rightB.position.set(+halfO, 0, -braceDepth/2 + linkDepth/2);
+    [topB,botB,leftB,rightB].forEach(m=>{ m.castShadow=m.receiveShadow=true; c.add(m); });
+
+    // Cross-webs (short struts) between front/back at the corners for solidity
+    const strut = new THREE.BoxGeometry(braceWall * 0.9, braceWall * 0.9, braceDepth - linkDepth);
+    const s1 = new THREE.Mesh(strut, mat); s1.position.set(+halfO - braceWall/2, +halfO - braceWall/2, -linkDepth/2);
+    const s2 = s1.clone(); s2.position.x *= -1;
+    const s3 = s1.clone(); s3.position.y *= -1;
+    const s4 = s2.clone(); s4.position.y *= -1;
+    [s1,s2,s3,s4].forEach(m=>{ m.castShadow=m.receiveShadow=true; c.add(m); });
 
     return c;
   }
@@ -190,7 +225,7 @@ export class MechzillaTower {
   _applyOpenAmount(t) {
     const max = THREE.MathUtils.degToRad(this.params.maxOpenDeg);
     const set = (hinge) => {
-      const sign = Math.sign(hinge.position.x) || 1; // left -, right +
+      const sign = Math.sign(hinge.position.x) || 1;    // left -, right +
       hinge.rotation.y = THREE.MathUtils.lerp(0, -sign * max, t); // OUTWARDS only
     };
     set(this.anim.leftHinge);
