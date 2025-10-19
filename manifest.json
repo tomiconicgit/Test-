@@ -1,0 +1,21 @@
+{
+  "short_name": "Voxel Game",
+  "name": "Voxel Builder Game",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": ".",
+  "display": "fullscreen",
+  "background_color": "#87ceeb",
+  "theme_color": "#87ceeb"
+}
+
