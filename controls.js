@@ -9,80 +9,103 @@ export class Controls {
         this.pitch = new THREE.Object3D();
         this.yaw.add(this.pitch);
         this.pitch.add(this.camera);
-        this.yaw.position.set(50, 5, 50); // Start higher
+        this.yaw.position.set(50, 25, 50); // Start higher for new terrain
         this.scene.add(this.yaw);
 
-        this.direction = new THREE.Vector2(0, 0);
+        // Player physics properties
         this.velocity = new THREE.Vector3(0, 0, 0);
-        this.moveSpeed = 20;
-        this.lookSpeed = 0.003;
-        this.gravity = 30;
-        this.jumpSpeed = 10;
+        this.moveSpeed = 15;
+        this.lookSpeed = 2.5;
+        this.gravity = 35;
+        this.jumpSpeed = 12;
         this.onGround = false;
         this.playerHeight = 1.8;
-        this.eyeHeight = 1.62;
-        this.playerWidth = 0.6;
-        this.playerSize = new THREE.Vector3(this.playerWidth, this.playerHeight, this.playerWidth);
-        this.raycaster = new THREE.Raycaster();
-        this.currentBlock = 2; // Default metal
+        this.eyeHeight = 1.6;
+        this.playerWidth = 0.5;
 
+        // Raycasting and block interaction
+        this.raycaster = new THREE.Raycaster();
+        this.raycaster.far = 8.0; // Max reach distance
+        this.currentBlock = 2; // Default to Metal
+        this.raycastResult = null;
+        this.initPlacementHelper();
+
+        // Touch controls state
+        this.direction = new THREE.Vector2(0, 0);
         this.joystickTouchId = null;
         this.lookTouchId = null;
-        this.lookPrev = { x: 0, y: 0 };
+        this.lookPrev = new THREE.Vector2();
 
+        // UI Elements
         this.joystick = document.getElementById('joystick');
         this.knob = document.getElementById('knob');
-        this.joystickRect = this.joystick.getBoundingClientRect();
-        this.center = { x: this.joystickRect.left + this.joystickRect.width / 2, y: this.joystickRect.top + this.joystickRect.height / 2 };
-        this.radius = this.joystickRect.width / 2;
-
-        document.addEventListener('touchstart', this.onTouchStart.bind(this));
-        document.addEventListener('touchmove', this.onTouchMove.bind(this));
-        document.addEventListener('touchend', this.onTouchEnd.bind(this));
-
-        document.getElementById('place-button').addEventListener('click', this.place.bind(this));
-        document.getElementById('dig-button').addEventListener('click', this.dig.bind(this));
-        document.getElementById('jump-button').addEventListener('click', this.jump.bind(this));
         this.blockSelect = document.getElementById('block-select');
+        this.onResize(); // Initial setup for joystick position
+
+        this.addEventListeners();
+    }
+
+    initPlacementHelper() {
+        const placementGeo = new THREE.BoxGeometry(1.002, 1.002, 1.002);
+        const placementEdges = new THREE.EdgesGeometry(placementGeo);
+        this.placementHelper = new THREE.LineSegments(placementEdges, new THREE.LineBasicMaterial({ color: 0x000000, linewidth: 2 }));
+        this.placementHelper.visible = false;
+        this.scene.add(this.placementHelper);
+    }
+    
+    addEventListeners() {
+        document.addEventListener('touchstart', this.onTouchStart.bind(this), { passive: false });
+        document.addEventListener('touchmove', this.onTouchMove.bind(this), { passive: false });
+        document.addEventListener('touchend', this.onTouchEnd.bind(this));
+        
+        window.addEventListener('resize', this.onResize.bind(this));
+
+        document.getElementById('place-button').addEventListener('click', this.dig.bind(this));
+        document.getElementById('dig-button').addEventListener('click', this.place.bind(this));
+        document.getElementById('jump-button').addEventListener('click', this.jump.bind(this));
+        
         this.blockSelect.addEventListener('change', () => {
             this.currentBlock = parseInt(this.blockSelect.value);
         });
     }
+    
+    onResize() {
+        this.joystickRect = this.joystick.getBoundingClientRect();
+        this.center = { x: this.joystickRect.left + this.joystickRect.width / 2, y: this.joystickRect.top + this.joystickRect.height / 2 };
+        this.radius = this.joystickRect.width / 2;
+    }
 
     onTouchStart(e) {
         e.preventDefault();
-        for (let touch of e.changedTouches) {
-            if (this.joystickTouchId === null && touch.clientX < window.innerWidth / 2) {
+        for (const touch of e.changedTouches) {
+            if (this.joystickTouchId === null && touch.clientX < window.innerWidth / 3) {
                 this.joystickTouchId = touch.identifier;
                 this.updateDirection(touch);
-            } else if (this.lookTouchId === null && touch.clientX > window.innerWidth / 2) {
+            } else if (this.lookTouchId === null) {
                 this.lookTouchId = touch.identifier;
-                this.lookPrev.x = touch.clientX;
-                this.lookPrev.y = touch.clientY;
+                this.lookPrev.set(touch.clientX, touch.clientY);
             }
         }
     }
 
     onTouchMove(e) {
         e.preventDefault();
-        for (let touch of e.touches) {
+        for (const touch of e.touches) {
             if (touch.identifier === this.joystickTouchId) {
                 this.updateDirection(touch);
             } else if (touch.identifier === this.lookTouchId) {
                 const deltaX = touch.clientX - this.lookPrev.x;
                 const deltaY = touch.clientY - this.lookPrev.y;
-                this.yaw.rotation.y -= deltaX * this.lookSpeed;
-                this.pitch.rotation.x -= deltaY * this.lookSpeed;
+                this.yaw.rotation.y -= deltaX * (this.lookSpeed / 1000);
+                this.pitch.rotation.x -= deltaY * (this.lookSpeed / 1000);
                 this.pitch.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, this.pitch.rotation.x));
-                this.lookPrev.x = touch.clientX;
-                this.lookPrev.y = touch.clientY;
+                this.lookPrev.set(touch.clientX, touch.clientY);
             }
         }
     }
 
     onTouchEnd(e) {
-        e.preventDefault();
-        for (let touch of e.changedTouches) {
+        for (const touch of e.changedTouches) {
             if (touch.identifier === this.joystickTouchId) {
                 this.joystickTouchId = null;
                 this.direction.set(0, 0);
@@ -105,104 +128,122 @@ export class Controls {
         this.knob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
     }
 
-    isPositionValid(feetPos) {
-        const halfSize = this.playerSize.clone().multiplyScalar(0.5);
-        const min = feetPos.clone().sub(halfSize);
-        const max = feetPos.clone().add(halfSize);
-        max.y = feetPos.y + this.playerHeight;
-
-        for (let x = Math.floor(min.x); x <= Math.floor(max.x); x++) {
-            for (let y = Math.floor(min.y); y <= Math.floor(max.y); y++) {
-                for (let z = Math.floor(min.z); z <= Math.floor(max.z); z++) {
-                    if (this.world.getBlock(x, y, z) > 0) {
+    isPositionValid(pos) {
+        const halfWidth = this.playerWidth / 2;
+        for (let y = 0; y < this.playerHeight; y += 0.5) {
+             for (let x = -halfWidth; x <= halfWidth; x += halfWidth) {
+                 for (let z = -halfWidth; z <= halfWidth; z += halfWidth) {
+                    if (this.world.getBlock(Math.floor(pos.x + x), Math.floor(pos.y + y), Math.floor(pos.z + z)) > 0) {
                         return false;
                     }
-                }
-            }
+                 }
+             }
         }
         return true;
     }
 
-    tryMove(deltaVec, feetPos) {
-        const newFeetPos = feetPos.clone().add(deltaVec);
-        if (this.isPositionValid(newFeetPos)) {
-            feetPos.copy(newFeetPos);
-            return true;
+    tryMove(delta, feetPos) {
+        if (!this.isPositionValid(feetPos.clone().add(delta))) {
+            return false;
         }
-        return false;
+        feetPos.add(delta);
+        return true;
     }
 
     jump() {
         if (this.onGround) {
             this.velocity.y = this.jumpSpeed;
-            this.onGround = false;
         }
     }
 
     place() {
-        this.raycaster.setFromCamera(new THREE.Vector2(0, 0), this.camera);
-        const intersects = this.raycaster.intersectObjects(this.world.blockMeshes);
-        if (intersects.length > 0) {
-            const int = intersects[0];
-            const pos = int.point.clone();
-            const nor = int.face.normal.clone();
-            const blockPos = pos.add(nor.multiplyScalar(0.001)).floor();
-            const newPos = blockPos.add(nor.round());
-            if (this.world.getBlock(newPos.x, newPos.y, newPos.z) === 0) {
-                this.world.setBlock(newPos.x, newPos.y, newPos.z, this.currentBlock);
-                this.world.rebuildDirtyChunks();
+        if (this.raycastResult) {
+            const { point, face } = this.raycastResult;
+            const placePos = point.clone().add(face.normal.clone().multiplyScalar(0.5)).floor();
+            
+            const playerFeet = this.yaw.position.clone().sub(new THREE.Vector3(0, this.eyeHeight, 0)).floor();
+            const playerHead = playerFeet.clone().add(new THREE.Vector3(0, 1, 0));
+
+            if (!placePos.equals(playerFeet) && !placePos.equals(playerHead)) {
+                if (this.world.getBlock(placePos.x, placePos.y, placePos.z) === 0) {
+                    this.world.setBlock(placePos.x, placePos.y, placePos.z, this.currentBlock);
+                    this.world.rebuildDirtyChunks();
+                }
             }
         }
     }
 
     dig() {
-        this.raycaster.setFromCamera(new THREE.Vector2(0, 0), this.camera);
-        const intersects = this.raycaster.intersectObjects(this.world.blockMeshes);
-        if (intersects.length > 0) {
-            const int = intersects[0];
-            const pos = int.point.clone();
-            const nor = int.face.normal.clone();
-            const blockPos = pos.add(nor.multiplyScalar(0.001)).floor();
+        if (this.raycastResult) {
+            const { point, face } = this.raycastResult;
+            const blockPos = point.clone().sub(face.normal.clone().multiplyScalar(0.5)).floor();
             if (this.world.getBlock(blockPos.x, blockPos.y, blockPos.z) !== 0) {
                 this.world.setBlock(blockPos.x, blockPos.y, blockPos.z, 0);
                 this.world.rebuildDirtyChunks();
             }
         }
     }
+    
+    updatePlacementHelper() {
+        this.raycaster.setFromCamera({x: 0, y: 0}, this.camera);
+        const intersects = this.raycaster.intersectObjects(this.world.blockMeshes);
+        if (intersects.length > 0) {
+            const int = intersects[0];
+            const blockPos = int.point.clone().sub(int.face.normal.clone().multiplyScalar(0.5)).floor();
+            this.placementHelper.position.copy(blockPos).addScalar(0.5);
+            this.placementHelper.visible = true;
+            this.raycastResult = int;
+        } else {
+            this.placementHelper.visible = false;
+            this.raycastResult = null;
+        }
+    }
 
     update(delta) {
+        // Apply gravity
         this.velocity.y -= this.gravity * delta;
 
-        const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(this.yaw.quaternion);
-        const right = new THREE.Vector3(1, 0, 0).applyQuaternion(this.yaw.quaternion);
+        // Get forward and right vectors
+        const forward = new THREE.Vector3();
+        this.pitch.getWorldDirection(forward);
+        forward.y = 0;
+        forward.normalize();
+        const right = new THREE.Vector3().crossVectors(this.camera.up, forward).normalize();
+        
+        // Calculate horizontal movement
+        const moveX = right.multiplyScalar(this.direction.x * this.moveSpeed * delta);
+        const moveZ = forward.multiplyScalar(-this.direction.y * this.moveSpeed * delta);
+        const horizDelta = moveX.add(moveZ);
 
-        const horizVelX = this.direction.x * this.moveSpeed;
-        const horizVelZ = -this.direction.y * this.moveSpeed;
-
-        const horizDelta = forward.clone().multiplyScalar(horizVelZ * delta).add(right.clone().multiplyScalar(horizVelX * delta));
-
+        // Get player's feet position
         const feetPos = this.yaw.position.clone();
         feetPos.y -= this.eyeHeight;
 
-        // Try move horizontal
-        this.tryMove(horizDelta, feetPos);
+        // --- Collision and Movement ---
+        // Move X and Z separately for wall sliding
+        this.tryMove(new THREE.Vector3(horizDelta.x, 0, 0), feetPos);
+        this.tryMove(new THREE.Vector3(0, 0, horizDelta.z), feetPos);
 
-        // Try move vertical
+        // Vertical movement
         const vertDelta = new THREE.Vector3(0, this.velocity.y * delta, 0);
-        const moved = this.tryMove(vertDelta, feetPos);
+        const movedVertically = this.tryMove(vertDelta, feetPos);
 
-        if (this.velocity.y < 0 && !moved) {
+        if (this.velocity.y < 0 && !movedVertically) {
             this.velocity.y = 0;
             this.onGround = true;
-        } else if (this.velocity.y > 0 && !moved) {
-            this.velocity.y = 0;
         } else {
             this.onGround = false;
         }
-
+        
+        if (this.velocity.y > 0 && !movedVertically) {
+            this.velocity.y = 0;
+        }
+        
+        // Update player position
         this.yaw.position.copy(feetPos);
         this.yaw.position.y += this.eyeHeight;
 
-        this.world.rebuildDirtyChunks();
+        // Update block placement helper
+        this.updatePlacementHelper();
     }
 }
