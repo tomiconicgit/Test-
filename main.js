@@ -35,7 +35,6 @@ const WORLD = new VoxelWorld(THREE, materials, { scene, sizeX:100, sizeZ:100, mi
 // Player state
 const SPEED = 4.0;           // m/s
 const EYE = 1.6;             // eye height over ground
-let actionMode = 'PLACE';    // or 'REMOVE'
 let activeBlock = BLOCK.METAL;
 
 // Highlight box
@@ -43,10 +42,22 @@ const highlightBox = new THREE.BoxHelper(new THREE.Object3D(), 0xffffff);
 highlightBox.visible = false;
 scene.add(highlightBox);
 
+// Current hit for actions
+let currentHit = null;
+
 // UI wiring
 const js = new Joystick(document.getElementById('joystick'));
-document.getElementById('btnPlace').addEventListener('click', ()=> actionMode='PLACE');
-document.getElementById('btnRemove').addEventListener('click', ()=> actionMode='REMOVE');
+document.getElementById('btnPlace').addEventListener('click', () => {
+  if (!currentHit) return;
+  const p = currentHit.prev; // adjacent empty cell
+  if(!inWorldXZ(p.x,p.z)) return;
+  if(p.y < WORLD.minY || p.y > WORLD.maxY) return;
+  WORLD.setVoxel(p.x, p.y, p.z, activeBlock, true);
+});
+document.getElementById('btnRemove').addEventListener('click', () => {
+  if (!currentHit) return;
+  WORLD.setVoxel(currentHit.pos.x, currentHit.pos.y, currentHit.pos.z, BLOCK.AIR, true);
+});
 document.querySelectorAll('input[name="block"]').forEach(r=>{
   r.addEventListener('change', e => activeBlock = (e.target.value==='METAL') ? BLOCK.METAL : BLOCK.CONCRETE);
 });
@@ -66,21 +77,6 @@ window.addEventListener('pointermove', e=>{
   pitch.rotation.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, pitch.rotation.x));
 });
 window.addEventListener('pointerup', e=>{ if(e.pointerId===lookId) lookId=null; });
-
-// Tap to act (center ray)
-window.addEventListener('pointerup', e=>{
-  if(e.clientX < innerWidth*0.5) return; // avoid conflict with joystick
-  const hit = raycastVoxel(yaw.position, getLookDirection(), 8.0);
-  if(!hit) return;
-  if(actionMode==='REMOVE'){
-    WORLD.setVoxel(hit.pos.x, hit.pos.y, hit.pos.z, BLOCK.AIR, true);
-  }else{
-    const p = hit.prev; // adjacent empty cell
-    if(!inWorldXZ(p.x,p.z)) return;
-    if(p.y < WORLD.minY || p.y > WORLD.maxY) return;
-    WORLD.setVoxel(p.x, p.y, p.z, activeBlock, true);
-  }
-}, { passive:false });
 
 // Movement & ground follow
 let lastT = performance.now();
@@ -104,11 +100,11 @@ function tick(){
   const targetY = (top<=WORLD.minY-1 ? 0 : top + 1) + EYE;
   yaw.position.y += (targetY - yaw.position.y) * 0.35; // smooth step
 
-  // Update highlight
-  const hit = raycastVoxel(yaw.position, getLookDirection(), 8.0);
-  if (hit) {
+  // Update highlight and currentHit
+  currentHit = raycastVoxel(yaw.position, getLookDirection(), 8.0);
+  if (currentHit) {
     highlightBox.visible = true;
-    highlightBox.position.set(hit.pos.x + 0.5, hit.pos.y + 0.5, hit.pos.z + 0.5);
+    highlightBox.position.set(currentHit.pos.x + 0.5, currentHit.pos.y + 0.5, currentHit.pos.z + 0.5);
     highlightBox.scale.set(1.01, 1.01, 1.01); // slight oversize for visibility
   } else {
     highlightBox.visible = false;
