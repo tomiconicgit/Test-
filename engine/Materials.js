@@ -45,7 +45,6 @@ function concreteTexture(size=256) {
 }
 
 export async function makeMaterials() {
-  // Try height name typo fallback
   const [albedo, normal, metallic, ao] = await Promise.all([
     loadTex('./assets/metal_albedo.png', { srgb:true }),
     loadTex('./assets/metal_normal.png'),
@@ -65,7 +64,6 @@ export async function makeMaterials() {
     envMapIntensity: 1.0,
   });
 
-  // Sand (simple beige)
   const sand = new THREE.MeshStandardMaterial({
     color: new THREE.Color('#d8c6a1'),
     roughness: 0.9,
@@ -79,8 +77,17 @@ export async function makeMaterials() {
     metalness: 0.0,
   });
 
-  // Tile 1× per face
+  // New glass material
+  const glass = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    roughness: 0.1,
+    metalness: 0.0,
+    transparent: true,
+    opacity: 0.25,
+    side: THREE.DoubleSide, // Render both sides of the glass
+  });
+
   for (const t of [albedo, normal, metallic, ao, height]) if (t) { t.repeat.set(1,1); }
 
-  return { metal, sand, concrete };
+  return { metal, sand, concrete, glass };
 }
