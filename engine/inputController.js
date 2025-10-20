@@ -12,13 +12,13 @@ export class InputController {
         this.toggleFly = false;
         this.flyUp = false;
         this.flyDown = false;
-        this.rotate = false; // <-- ADD THIS
+        this.rotate = false; // <-- Rotate action
 
         // Internal state for button presses
         this._r2Pressed = false;
         this._l2Pressed = false;
         this._r1Pressed = false;
-        this._l1Pressed = false; // <-- ADD THIS
+        this._l1Pressed = false; // <-- L1 state
         this._aPressed = false;
         this._lastAPressTime = 0;
         
@@ -49,7 +49,7 @@ export class InputController {
     
     update(dt) {
         // Reset single-frame actions
-        this.place = this.remove = this.snap = this.toggleFly = this.rotate = false; // <-- ADD this.rotate
+        this.place = this.remove = this.snap = this.toggleFly = this.rotate = false; // <-- Add this.rotate
 
         // Prioritize gamepad if present
         if (navigator.getGamepads && navigator.getGamepads()[0]) {
@@ -76,10 +76,8 @@ export class InputController {
             this.flyUp = this.gamepad.buttons[0].pressed;
             this.flyDown = this.gamepad.buttons[2].pressed;
             
-            // --- ADD THIS BLOCK ---
-            // L1 Button (Rotate)
+            // L1 Button (Rotate) - Gamepad button 4 is L1
             if (this.gamepad.buttons[4].pressed && !this._l1Pressed) { this.rotate = true; } this._l1Pressed = this.gamepad.buttons[4].pressed;
-            // --- END OF BLOCK ---
 
         } else {
             // Fallback to touch controls
