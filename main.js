@@ -51,28 +51,35 @@ raycaster.far = 8.0;
 // --- PROP GEOMETRIES ---
 function createTrussWallGeometry() {
     const beamSize = 0.1;
+    const width = 1.0;
+    const height = 1.0;
     const geometries = [];
-    const frame = new THREE.BoxGeometry(1, 1, beamSize);
-    const edges = new THREE.EdgesGeometry(frame);
-    const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0xffffff }));
-    const box = new THREE.BoxGeometry(1-beamSize, 1-beamSize, beamSize);
-    
+
+    // Helper to create and position a beam
+    const addBeam = (sx, sy, sz, px, py, pz, rotZ = 0) => {
+        const geom = new THREE.BoxGeometry(sx, sy, sz);
+        if (rotZ !== 0) geom.rotateZ(rotZ);
+        geom.translate(px, py, pz);
+        geometries.push(geom);
+    };
+
     // Frame
-    const frameGeom = BufferGeometryUtils.mergeGeometries([
-        new THREE.BoxGeometry(1, beamSize, beamSize).translate(0, 0.5 - beamSize/2, 0),
-        new THREE.BoxGeometry(1, beamSize, beamSize).translate(0, -0.5 + beamSize/2, 0),
-        new THREE.BoxGeometry(beamSize, 1, beamSize).translate(0.5 - beamSize/2, 0, 0),
-        new THREE.BoxGeometry(beamSize, 1, beamSize).translate(-0.5 + beamSize/2, 0, 0),
-    ]);
-    geometries.push(frameGeom);
+    addBeam(width, beamSize, beamSize, 0, (height - beamSize) / 2, 0); // Top
+    addBeam(width, beamSize, beamSize, 0, -(height - beamSize) / 2, 0); // Bottom
+    addBeam(beamSize, height, beamSize, (width - beamSize) / 2, 0, 0); // Right
+    addBeam(beamSize, height, beamSize, -(width - beamSize) / 2, 0, 0); // Left
 
     // X Brace
-    const braceLength = Math.sqrt(2) * (1-beamSize);
-    const brace1 = new THREE.BoxGeometry(braceLength, beamSize, beamSize).rotateZ(Math.PI / 4);
-    const brace2 = new THREE.BoxGeometry(braceLength, beamSize, beamSize).rotateZ(-Math.PI / 4);
-    geometries.push(brace1, brace2);
+    const braceLength = Math.sqrt(Math.pow(width - beamSize, 2) + Math.pow(height - beamSize, 2));
+    const braceAngle = Math.atan2(height - beamSize, width - beamSize);
+    addBeam(braceLength, beamSize, beamSize, 0, 0, 0, braceAngle);
+    addBeam(braceLength, beamSize, beamSize, 0, 0, 0, -braceAngle);
 
     const finalGeom = BufferGeometryUtils.mergeGeometries(geometries);
+    if (!finalGeom) {
+        console.error("Truss geometry failed to create!");
+        return new THREE.BoxGeometry(1,1,0.1); // Return a fallback geometry
+    }
     finalGeom.translate(0, 0.5, 0); // Set pivot to bottom-center
     return finalGeom;
 }
