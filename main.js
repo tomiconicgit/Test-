@@ -15,6 +15,7 @@ import { createFloorGeometry } from './engine/structures/floor.js';
 import { createGlassPaneGeometry } from './engine/structures/glass.js';
 import { createSlopeGeometry } from './engine/structures/slope.js';
 import { createCylinderGeometry } from './engine/structures/cylinder.js';
+// This import is now simple and has no bad dependencies
 import { 
     createPipeStraightGeometry, 
     createPipeElbowGeometry
@@ -43,12 +44,13 @@ sun.shadow.mapSize.set(2048, 2048);
 sun.shadow.camera.left = -80; sun.shadow.camera.right = 80;
 sun.shadow.camera.top = 80; sun.shadow.camera.bottom = -80;
 scene.add(sun);
-const lightFill1 = new THREE.DirectionLigh(0xffffff, 0.4); lightFill1.position.set(-100, 60, -50); scene.add(lightFill1);
+const lightFill1 = new THREE.DirectionalLight(0xffffff, 0.4); lightFill1.position.set(-100, 60, -50); scene.add(lightFill1);
 const lightFill2 = new THREE.DirectionalLight(0xffffff, 0.4); lightFill2.position.set(50, 60, -100); scene.add(lightFill2);
 const lightFill3 = new THREE.DirectionalLight(0xffffff, 0.4); lightFill3.position.set(-50, 60, 100); scene.add(lightFill3);
 
 const materials = await makeMaterials();
 
+// Geometries list is now simple
 const propGeometries = {
     'BLOCK': createBlockGeometry(),
     'WALL': createWallGeometry(),
@@ -96,11 +98,10 @@ function tick() {
     if (input.remove) {
         placement.remove(world);
     }
-    // --- ADD THIS BLOCK ---
+    // This is the rotate check you asked for
     if (input.rotate) {
         placement.rotate(world);
     }
-    // --- END OF BLOCK ---
 
     renderer.render(scene, camera);
 }
