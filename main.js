@@ -1,8 +1,16 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js';
-import * as BufferGeometryUtils from 'https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/utils/BufferGeometryUtils.js';
 import { makeMaterials } from './engine/Materials.js';
 import { VoxelWorld, BLOCK } from './engine/VoxelWorld.js';
 import { Joystick } from './ui/Joystick.js';
+
+// Import new structure modules
+import { createBlockGeometry } from './engine/structures/block.js';
+import { createWallGeometry } from './engine/structures/wall.js';
+import { createFloorGeometry } from './engine/structures/floor.js';
+import { createGlassPaneGeometry } from './engine/structures/glass.js';
+import { createSlopeGeometry } from './engine/structures/slope.js';
+import { createCylinderGeometry } from './engine/structures/cylinder.js';
+
 
 const canvas = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, powerPreference:'high-performance' });
@@ -21,11 +29,9 @@ const yaw = new THREE.Object3D(); const pitch = new THREE.Object3D();
 yaw.add(pitch); pitch.add(camera); scene.add(yaw);
 
 // Lights
-const hemi = new THREE.HemisphereLight(0xddeeff, 0x998877, 1.2);
-scene.add(hemi);
+const hemi = new THREE.HemisphereLight(0xddeeff, 0x998877, 1.2); scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xffffff, 0.8);
-sun.position.set(100, 100, 50);
-sun.castShadow = true;
+sun.position.set(100, 100, 50); sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
 sun.shadow.camera.left = -80; sun.shadow.camera.right = 80;
 sun.shadow.camera.top = 80; sun.shadow.camera.bottom = -80;
@@ -39,28 +45,17 @@ const WORLD = new VoxelWorld(THREE, materials, { scene, sizeX:100, sizeZ:100, mi
 
 // Player/State
 const SPEED = 5.0; const EYE = 1.6; let activeItem = 'BLOCK'; let isFlying = false; let isSnapping = false; let snapTarget = null;
+let activeMaterial = materials.metal; // New state for selected texture
 const props = []; const raycaster = new THREE.Raycaster(); raycaster.far = 8.0;
 
-// --- GEOMETRY FUNCTIONS ---
-function createSlopeGeometry() {
-    const shape = new THREE.Shape().moveTo(0,0).lineTo(1,0).lineTo(0,1);
-    const geometry = new THREE.ExtrudeGeometry(shape, { depth: 1, bevelEnabled: false });
-    geometry.translate(-0.5, -0.5, -0.5).translate(0, 0.5, 0);
-    return geometry;
-}
-
-const wallGeo = new THREE.BoxGeometry(1, 1, 0.1); wallGeo.translate(0, 0.5, 0);
-const paneGeo = new THREE.BoxGeometry(1, 1, 0.05); paneGeo.translate(0, 0.5, 0);
-const floorGeo = new THREE.BoxGeometry(1, 0.1, 1); floorGeo.translate(0, 0.05, 0);
-const slopeGeo = createSlopeGeometry();
-const cylinderGeo = new THREE.CylinderGeometry(0.5, 0.5, 1, 24); cylinderGeo.translate(0, 0.5, 0);
-
+// --- PROP GEOMETRIES FROM MODULES ---
 const propGeometries = {
-    'WALL': wallGeo, 
-    'PANE': paneGeo, 
-    'FLOOR': floorGeo, 
-    'SLOPE': slopeGeo,
-    'CYLINDER': cylinderGeo,
+    'BLOCK': createBlockGeometry(), // This is now a prop, separate from the voxel block
+    'WALL': createWallGeometry(),
+    'PANE': createGlassPaneGeometry(),
+    'FLOOR': createFloorGeometry(),
+    'SLOPE': createSlopeGeometry(),
+    'CYLINDER': createCylinderGeometry(),
 };
 
 // Previews & Highlights
@@ -79,6 +74,10 @@ let gamepad = null; let r2Pressed = false, l2Pressed = false, aPressed = false, 
 window.addEventListener('gamepadconnected', (e) => { gamepad = e.gamepad; }); window.addEventListener('gamepaddisconnected', () => { gamepad = null; });
 const js = new Joystick(document.getElementById('joystick'));
 document.getElementById('itemPicker').addEventListener('change', e => { activeItem = e.target.value; });
+document.getElementById('texturePicker').addEventListener('change', e => {
+    // Update the active material based on selection
+    activeMaterial = materials[e.target.value] || materials.metal;
+});
 
 function placeAction() {
     if (!currentHit && !isSnapping) return;
@@ -89,8 +88,8 @@ function placeAction() {
     }
 }
 function placeProp() {
-    let material = materials.metal;
-    if (activeItem === 'PANE') material = materials.glass;
+    // Use the activeMaterial, but override for Glass Panes
+    let material = activeItem === 'PANE' ? materials.glass : activeMaterial;
     const newProp = new THREE.Mesh(propGeometries[activeItem], material);
     newProp.position.copy(previewMesh.position); newProp.rotation.copy(previewMesh.rotation);
     newProp.castShadow = newProp.receiveShadow = true; newProp.name = activeItem.toLowerCase();
