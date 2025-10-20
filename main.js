@@ -20,14 +20,34 @@ const yaw = new THREE.Object3D(); const pitch = new THREE.Object3D();
 yaw.add(pitch); pitch.add(camera); scene.add(yaw);
 camera.position.set(0,0,0);
 
-// Lights
-const hemi = new THREE.HemisphereLight(0xcfe8ff, 0xb0a080, 2.0); // Increased intensity & brighter ground
+// Lights - NEW 4-WAY LIGHTING SYSTEM
+const hemi = new THREE.HemisphereLight(0xddeeff, 0x998877, 1.2); // Balanced ambient light
 scene.add(hemi);
-const sun = new THREE.DirectionalLight(0xffffff, 1.5); // Increased intensity
-sun.position.set(60,120,30);
+
+// Main light source with shadows
+const sun = new THREE.DirectionalLight(0xffffff, 0.8);
+sun.position.set(100, 100, 50);
 sun.castShadow = true;
-sun.shadow.mapSize.set(1024,1024);
+sun.shadow.mapSize.set(2048, 2048); // Higher quality shadows
+sun.shadow.camera.left = -80;
+sun.shadow.camera.right = 80;
+sun.shadow.camera.top = 80;
+sun.shadow.camera.bottom = -80;
 scene.add(sun);
+
+// Fill lights from other directions (no shadows for performance)
+const lightFill1 = new THREE.DirectionalLight(0xffffff, 0.4);
+lightFill1.position.set(-100, 60, -50);
+scene.add(lightFill1);
+
+const lightFill2 = new THREE.DirectionalLight(0xffffff, 0.4);
+lightFill2.position.set(50, 60, -100);
+scene.add(lightFill2);
+
+const lightFill3 = new THREE.DirectionalLight(0xffffff, 0.4);
+lightFill3.position.set(-50, 60, 100);
+scene.add(lightFill3);
+
 
 const materials = await makeMaterials();
 const WORLD = new VoxelWorld(THREE, materials, { scene, sizeX:100, sizeZ:100, minY:-30, maxY:500 });
