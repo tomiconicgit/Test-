@@ -2,7 +2,7 @@
 
 // --- CONFIGURATION ---
 // Increment this version every time you push updates
-const CACHE_VERSION = 'v1.0.2'; // <-- MODIFICATION 1: Incremented version
+const CACHE_VERSION = 'v1.0.2'; // <-- MODIFICATION: Incremented version
 const CACHE_NAME = `builder-pwa-${CACHE_VERSION}`;
 
 // List of all the files that make up the "app shell"
@@ -30,7 +30,7 @@ const APP_SHELL_URLS = [
   './engine/structures/glass.js',
   './engine/structures/slope.js',
   './engine/structures/wall.js',
-  './engine/structures/pipe.js', // <-- Caches your pipe file
+  './engine/structures/pipe.js', // <-- Caches your NEW pipe.js
 
   // Assets
   './assets/metal_albedo.png',
@@ -40,9 +40,8 @@ const APP_SHELL_URLS = [
   './assets/metal_normal.png',
 
   // External assets
-  'https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js',
-  // <-- MODIFICATION 2: Added the new dependency. This fixes the 404.
-  'https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/utils/BufferGeometryUtils.module.js'
+  'https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js'
+  // <-- MODIFICATION: REMOVED the BufferGeometryUtils.module.js line
 ];
 
 // --- SERVICE WORKER LOGIC ---
@@ -53,7 +52,6 @@ self.addEventListener('install', (event) => {
     caches.open(CACHE_NAME)
       .then((cache) => {
         console.log(`[SW] Caching app shell for version ${CACHE_VERSION}`);
-        // This will now cache the new BufferGeometryUtils file
         return cache.addAll(APP_SHELL_URLS);
       })
       .then(() => self.skipWaiting()) // Activate new SW immediately
@@ -66,7 +64,7 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames
-          // This deletes any cache that is NOT the new v1.0.1
+          // This deletes old caches (like v1.0.1)
           .filter(name => name.startsWith('builder-pwa-') && name !== CACHE_NAME)
           .map(name => caches.delete(name))
       );
@@ -79,7 +77,7 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     caches.match(event.request)
       .then((response) => {
-        // If we have a cached version, return it.
+        // If we have a cached version, return it. Otherwise, fetch from network.
         return response || fetch(event.request);
       })
   );
