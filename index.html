@@ -20,7 +20,6 @@
         <select id="itemPicker">
           <option value="METAL">Metal Block</option>
           <option value="CONCRETE">Concrete Block</option>
-          <option value="FLOOR_PANEL">Metal Floor Panel</option>
           <option value="WALL">Thin Wall</option>
           <option value="PANE">Glass Pane</option>
           <option value="DOOR">Door</option>
@@ -41,6 +40,7 @@
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
+        // CORRECTED: Using a relative path
         navigator.serviceWorker.register('./sw.js')
           .then(reg => console.log('SW registered:', reg))
           .catch(err => console.log('SW registration failed:', err));
