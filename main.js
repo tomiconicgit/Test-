@@ -1,5 +1,6 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js';
-import { mergeGeometries } from 'https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/utils/BufferGeometryUtils.js';
+// CORRECTED: Using BufferGeometryUtils directly for merging
+import * as BufferGeometryUtils from 'https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/utils/BufferGeometryUtils.js';
 import { makeMaterials } from './engine/Materials.js';
 import { VoxelWorld, BLOCK } from './engine/VoxelWorld.js';
 import { Joystick } from './ui/Joystick.js';
@@ -47,56 +48,55 @@ const WORLD = new VoxelWorld(THREE, materials, { scene, sizeX:100, sizeZ:100, mi
 // Player/State
 const SPEED = 4.0;
 const EYE = 1.6;
-let activeItem = 'METAL'; // Now tracks all placeable items
-const props = []; // Array to hold non-voxel objects like trusses
+let activeItem = 'METAL';
+const props = [];
 const raycaster = new THREE.Raycaster();
 
-// --- NEW TRUSS GEOMETRY ---
+// --- REWRITTEN TRUSS GEOMETRY ---
 function createTrussGeometry() {
-  const beamSize = 0.15;
-  const length = 4;
-  const height = 4;
-  const depth = 0.5;
+    const beamSize = 0.15;
+    const length = 4;
+    const height = 4;
+    const depth = 0.5;
+    const geometries = [];
 
-  const geometries = [];
+    // Function to create a beam and add it to the geometries array
+    const addBeam = (sx, sy, sz, px, py, pz, rx = 0, ry = 0, rz = 0) => {
+        const geom = new THREE.BoxGeometry(sx, sy, sz);
+        geom.rotateX(rx);
+        geom.rotateY(ry);
+        geom.rotateZ(rz);
+        geom.translate(px, py, pz);
+        geometries.push(geom);
+    };
 
-  // Frame
-  const horiz = new THREE.BoxGeometry(length, beamSize, beamSize);
-  const vert = new THREE.BoxGeometry(beamSize, height, beamSize);
-  
-  const topBeam = horiz.clone().translate(0, height / 2 - beamSize / 2, 0);
-  const bottomBeam = horiz.clone().translate(0, -height / 2 + beamSize / 2, 0);
-  const leftBeam = vert.clone().translate(-length / 2 + beamSize / 2, 0, 0);
-  const rightBeam = vert.clone().translate(length / 2 - beamSize / 2, 0, 0);
-  geometries.push(topBeam, bottomBeam, leftBeam, rightBeam);
-  
-  // Bracing
-  const braceGeom = new THREE.BoxGeometry(beamSize, Math.hypot(length/2, height), beamSize);
-  const brace1 = braceGeom.clone();
-  brace1.rotateZ(Math.atan2(height, length/2));
-  brace1.translate(-length/4, 0, 0);
-  
-  const brace2 = braceGeom.clone();
-  brace2.rotateZ(-Math.atan2(height, length/2));
-  brace2.translate(length/4, 0, 0);
+    // Create two sides of the truss
+    for (const zOffset of [0, depth - beamSize]) {
+        // Frame
+        addBeam(length, beamSize, beamSize, 0, height - beamSize / 2, zOffset); // Top
+        addBeam(length, beamSize, beamSize, 0, beamSize / 2, zOffset);           // Bottom
+        addBeam(beamSize, height, beamSize, -length / 2 + beamSize / 2, height / 2, zOffset); // Left
+        addBeam(beamSize, height, beamSize, length / 2 - beamSize / 2, height / 2, zOffset);  // Right
 
-  geometries.push(brace1, brace2);
+        // Bracing
+        const braceLength = Math.hypot(length / 2, height);
+        const braceAngle = Math.atan2(height, length / 2);
+        addBeam(braceLength, beamSize, beamSize, -length / 4, height / 2, zOffset, 0, 0, -braceAngle);
+        addBeam(braceLength, beamSize, beamSize, length / 4, height / 2, zOffset, 0, 0, braceAngle);
+    }
+    
+    // Cross members connecting the two sides
+    for(let i=0; i < 5; i++) {
+        const x = -length / 2 + beamSize / 2 + i * (length / 4);
+        addBeam(beamSize, beamSize, depth, x, height - beamSize / 2, depth / 2 - beamSize / 2);
+        addBeam(beamSize, beamSize, depth, x, beamSize/2, depth / 2 - beamSize / 2);
+    }
 
-  const singleSide = mergeGeometries(geometries);
-  const otherSide = singleSide.clone().translate(0, 0, depth - beamSize);
-  
-  // Cross members connecting the two sides
-  for(let i=0; i<5; i++){
-    const cross = new THREE.BoxGeometry(beamSize, beamSize, depth);
-    cross.translate(-length/2 + beamSize/2 + i*(length/4), height/2 - beamSize/2, depth/2 - beamSize/2);
-    geometries.push(cross);
-    const cross2 = cross.clone().translate(0, -height+beamSize, 0);
-    geometries.push(cross2);
-  }
-
-  const finalGeom = mergeGeometries([singleSide, otherSide, ...geometries.slice(-10)]);
-  finalGeom.translate(0, height/2, -depth/2); // Position pivot at bottom-center
-  return finalGeom;
+    // Merge all geometries into one
+    const finalGeom = BufferGeometryUtils.mergeGeometries(geometries);
+    // Move pivot point to the bottom-center for easy placement
+    finalGeom.translate(0, 0, -depth / 2 + beamSize/2);
+    return finalGeom;
 }
 
 const trussGeometry = createTrussGeometry();
@@ -119,34 +119,32 @@ document.getElementById('itemPicker').addEventListener('change', e => { activeIt
 
 document.getElementById('btnPlace').addEventListener('click', () => {
   if (!currentHit) return;
-
   const item = activeItem;
   if (item === 'METAL' || item === 'CONCRETE') {
     const block = (item === 'METAL') ? BLOCK.METAL : BLOCK.CONCRETE;
     const p = currentHit.prev;
     if(!inWorldXZ(p.x,p.z) || p.y < WORLD.minY || p.y > WORLD.maxY) return;
     WORLD.setVoxel(p.x, p.y, p.z, block, true);
-  } else if (item === 'TRUSS') {
+  } else if (item === 'TRUSS' && trussPreview.visible) {
     const newTruss = new THREE.Mesh(trussGeometry, materials.metal);
     newTruss.position.copy(trussPreview.position);
     newTruss.rotation.copy(trussPreview.rotation);
     newTruss.castShadow = newTruss.receiveShadow = true;
-    newTruss.name = "truss"; // For removal
+    newTruss.name = "truss";
     scene.add(newTruss);
     props.push(newTruss);
   }
 });
 
 document.getElementById('btnRemove').addEventListener('click', () => {
-  // Prioritize removing props
-  raycaster.setFromCamera({x:0, y:0}, camera); // Ray from center of screen
+  raycaster.setFromCamera({x:0, y:0}, camera);
   const intersects = raycaster.intersectObjects(props);
   if (intersects.length > 0) {
     const obj = intersects[0].object;
     scene.remove(obj);
     props.splice(props.indexOf(obj), 1);
     if(obj.geometry) obj.geometry.dispose();
-  } else { // Fallback to removing blocks
+  } else {
     if (!currentHit) return;
     WORLD.setVoxel(currentHit.pos.x, currentHit.pos.y, currentHit.pos.z, BLOCK.AIR, true);
   }
@@ -189,7 +187,6 @@ function tick(){
 
   currentHit = raycastVoxel(yaw.position, getLookDirection(), 8.0);
   
-  // Update highlights based on active item
   const isBlockActive = activeItem === 'METAL' || activeItem === 'CONCRETE';
   highlightWireframe.visible = isBlockActive && currentHit;
   trussPreview.visible = activeItem === 'TRUSS' && currentHit;
@@ -198,9 +195,8 @@ function tick(){
     if(isBlockActive) {
       highlightWireframe.position.set(currentHit.pos.x + 0.5, currentHit.pos.y + 0.5, currentHit.pos.z + 0.5);
     } else if (activeItem === 'TRUSS') {
-      const pos = currentHit.prev; // Place in empty space
+      const pos = currentHit.prev;
       trussPreview.position.set(pos.x, pos.y, pos.z);
-      // Align to player's direction (snap to 90 degrees)
       const angle = Math.round(yaw.rotation.y / (Math.PI / 2)) * (Math.PI / 2);
       trussPreview.rotation.y = angle;
     }
