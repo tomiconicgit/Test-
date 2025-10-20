@@ -154,52 +154,39 @@ function tick() {
         gamepad = navigator.getGamepads()[0];
         const deadzone = 0.15;
 
-        // --- CORRECTED MOVEMENT & INERTIA FIX ---
-        // Left stick for movement. This overrides the virtual joystick.
-        const ax0 = gamepad.axes[0]; // Strafe Left/Right
-        const ax1 = gamepad.axes[1]; // Forward/Backward
-
+        const ax0 = gamepad.axes[0];
+        const ax1 = gamepad.axes[1];
         if (Math.abs(ax0) > deadzone || Math.abs(ax1) > deadzone) {
-            // Use gamepad input directly
             js.axX = ax0;
-            // Gamepad Y is inverted (-1 is up), virtual joystick Y is not (-1 is up).
-            // So we can assign directly.
             js.axY = ax1;
         } else {
-            // If stick is centered, reset virtual joystick to stop movement.
             js.axX = 0;
             js.axY = 0;
         }
 
-        // Right stick for camera
         const ax2 = gamepad.axes[2];
         const ax3 = gamepad.axes[3];
         if (Math.abs(ax2) > deadzone) yaw.rotation.y -= ax2 * 2.5 * dt;
         if (Math.abs(ax3) > deadzone) pitch.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, pitch.rotation.x - ax3 * 2.5 * dt));
 
-        // R2 for Place (Button 7)
         if (gamepad.buttons[7].pressed && !r2Pressed) { placeAction(); r2Pressed = true; }
         else if (!gamepad.buttons[7].pressed) { r2Pressed = false; }
 
-        // L2 for Remove (Button 6)
         if (gamepad.buttons[6].pressed && !l2Pressed) { removeAction(); l2Pressed = true; }
         else if (!gamepad.buttons[6].pressed) { l2Pressed = false; }
 
-        // Double Tap A for Flight (Button 0)
         if (gamepad.buttons[0].pressed && !aPressed) {
             if (t - lastAPressTime < 300) { isFlying = !isFlying; }
             lastAPressTime = t;
             aPressed = true;
         } else if (!gamepad.buttons[0].pressed) { aPressed = false; }
 
-        // Flying controls
         if (isFlying) {
             const flySpeed = SPEED * dt;
-            if (gamepad.buttons[0].pressed) yaw.position.y += flySpeed; // A to go up
-            if (gamepad.buttons[2].pressed) yaw.position.y -= flySpeed; // X to go down
+            if (gamepad.buttons[0].pressed) yaw.position.y += flySpeed;
+            if (gamepad.buttons[2].pressed) yaw.position.y -= flySpeed;
         }
 
-        // R1 to enter/exit Snap Mode (Button 5)
         if (gamepad.buttons[5].pressed && !r1Pressed) {
             raycaster.setFromCamera({ x: 0, y: 0 }, camera);
             const intersects = raycaster.intersectObjects(props);
@@ -269,7 +256,8 @@ function tick() {
                 voxelHighlight.position.set(currentHit.pos.x + 0.5, currentHit.pos.y + 0.5, currentHit.pos.z + 0.5);
                 voxelHighlight.visible = true;
             } else if (propGeometries[activeItem]) {
-                previewMesh.geometry = propGeometries[activeitem];
+                // *** THIS IS THE CORRECTED LINE ***
+                previewMesh.geometry = propGeometries[activeItem];
                 const pos = currentHit.prev;
                 const normal = currentHit.normal;
                 previewMesh.position.set(pos.x + 0.5, pos.y, pos.z + 0.5);
