@@ -41,7 +41,7 @@ const WORLD = new VoxelWorld(THREE, materials, { scene, sizeX:100, sizeZ:100, mi
 const SPEED = 5.0; const EYE = 1.6; let activeItem = 'BLOCK'; let isFlying = false; let isSnapping = false; let snapTarget = null;
 const props = []; const raycaster = new THREE.Raycaster(); raycaster.far = 8.0;
 
-// --- CORRECTED GEOMETRY FUNCTIONS ---
+// --- STABLE GEOMETRY FUNCTIONS ---
 function createSlopeGeometry() {
     const shape = new THREE.Shape().moveTo(0,0).lineTo(1,0).lineTo(0,1);
     const geometry = new THREE.ExtrudeGeometry(shape, { depth: 1, bevelEnabled: false });
@@ -50,47 +50,45 @@ function createSlopeGeometry() {
 }
 
 function createHexWallGeometry() {
-    const r = 0.5; // radius
-    const wallThickness = 0.1;
-    const geometries = [];
+    // A simple box with a hole is much more stable than merging many small boxes.
+    const shape = new THREE.Shape();
+    shape.moveTo(-0.5, -0.5);
+    shape.lineTo(0.5, -0.5);
+    shape.lineTo(0.5, 0.5);
+    shape.lineTo(-0.5, 0.5);
+    shape.closePath();
+
+    const holePath = new THREE.Path();
+    const r = 0.3; // Make hole slightly smaller to ensure solid corners
     for (let i = 0; i < 6; i++) {
         const angle = (i / 6) * Math.PI * 2;
-        const nextAngle = ((i + 1) / 6) * Math.PI * 2;
-        const x1 = Math.cos(angle) * r;
-        const y1 = Math.sin(angle) * r;
-        const x2 = Math.cos(nextAngle) * r;
-        const y2 = Math.sin(nextAngle) * r;
-        
-        const beamLength = Math.hypot(x2 - x1, y2 - y1);
-        const beam = new THREE.BoxGeometry(beamLength, wallThickness, wallThickness);
-        beam.rotateZ(Math.atan2(y2 - y1, x2 - x1));
-        beam.translate((x1 + x2) / 2, (y1 + y2) / 2, 0);
-        geometries.push(beam);
+        if (i === 0) {
+            holePath.moveTo(Math.cos(angle) * r, Math.sin(angle) * r);
+        } else {
+            holePath.lineTo(Math.cos(angle) * r, Math.sin(angle) * r);
+        }
     }
-    const finalGeom = BufferGeometryUtils.mergeGeometries(geometries);
-    finalGeom.translate(0, 0.5, 0); // Set pivot to bottom
-    return finalGeom;
+    holePath.closePath();
+    shape.holes.push(holePath);
+
+    const geometry = new THREE.ExtrudeGeometry(shape, { depth: 0.1, bevelEnabled: false });
+    geometry.translate(0, 0, -0.05);
+    geometry.translate(0, 0.5, 0);
+    return geometry;
 }
 
 function createPipeFloorGeometry() {
-    const radius = 0.2;
-    const tubeRadius = 0.25;
-    const geometries = [];
-    const verticalPipe = new THREE.CylinderGeometry(radius, radius, 0.5, 16);
-    verticalPipe.translate(0, 0.25, 0);
-    geometries.push(verticalPipe);
+    // This creates a simple 'L' shape out of two cylinders, which is stable.
+    const vertGeo = new THREE.CylinderGeometry(0.2, 0.2, 1, 16);
+    vertGeo.translate(0, 0.5, 0);
     
-    const elbow = new THREE.TorusGeometry(tubeRadius, radius, 8, 16, Math.PI / 2);
-    elbow.rotateY(Math.PI / 2);
-    elbow.translate(0, 0.5, tubeRadius);
-    geometries.push(elbow);
+    const horzGeo = new THREE.CylinderGeometry(0.2, 0.2, 0.5, 16);
+    horzGeo.rotateX(Math.PI / 2);
+    horzGeo.translate(0, 1, 0.25);
     
-    const finalGeom = BufferGeometryUtils.mergeGeometries(geometries);
-    finalGeom.translate(0, 0, -tubeRadius); // Center it
-    finalGeom.translate(0, 0, 0.5); // Align with block edge
+    const finalGeom = BufferGeometryUtils.mergeGeometries([vertGeo, horzGeo]);
     return finalGeom;
 }
-
 
 const wallGeo = new THREE.BoxGeometry(1, 1, 0.1); wallGeo.translate(0, 0.5, 0);
 const paneGeo = new THREE.BoxGeometry(1, 1, 0.05); paneGeo.translate(0, 0.5, 0);
@@ -98,8 +96,8 @@ const floorGeo = new THREE.BoxGeometry(1, 0.1, 1); floorGeo.translate(0, 0.05, 0
 const slopeGeo = createSlopeGeometry();
 const cylinderGeo = new THREE.CylinderGeometry(0.5, 0.5, 1, 24); cylinderGeo.translate(0, 0.5, 0);
 const hexWallGeo = createHexWallGeometry();
-const pipeGeo = new THREE.CylinderGeometry(0.2, 0.2, 1, 16); pipeGeo.rotateZ(Math.PI/2);
-const pipeEndGeo = new THREE.CylinderGeometry(0.25, 0.25, 0.1, 16); pipeEndGeo.rotateZ(Math.PI/2);
+const pipeGeo = new THREE.CylinderGeometry(0.2, 0.2, 1, 16); pipeGeo.rotateZ(Math.PI / 2);
+const pipeEndGeo = new THREE.CylinderGeometry(0.25, 0.25, 0.1, 16); pipeEndGeo.rotateZ(Math.PI / 2);
 const pipeFloorGeo = createPipeFloorGeometry();
 
 const propGeometries = {
@@ -108,7 +106,7 @@ const propGeometries = {
     'PIPE_END': pipeEndGeo, 'PIPE_FLOOR': pipeFloorGeo,
 };
 
-// Previews & Highlights
+// Previews & Highlights (unchanged)
 const previewMat = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.4, side: THREE.DoubleSide });
 const previewMesh = new THREE.Mesh(new THREE.BoxGeometry(), previewMat);
 previewMesh.visible = false; scene.add(previewMesh);
@@ -149,7 +147,7 @@ function removeAction() {
 }
 document.getElementById('btnPlace').addEventListener('click', placeAction); document.getElementById('btnRemove').addEventListener('click', removeAction);
 
-// MAIN LOOP
+// MAIN LOOP (unchanged)
 let lastT = performance.now();
 tick();
 function tick() {
@@ -174,7 +172,7 @@ function tick() {
         if(propGeometries[activeItem]){
             previewMesh.geometry=propGeometries[activeItem];
             const targetBox = new THREE.Box3().setFromObject(snapTarget);
-            const newY = targetBox.max.y; // Corrected Stacking Logic
+            const newY = targetBox.max.y;
             let newPos = new THREE.Vector3(snapTarget.position.x,newY,snapTarget.position.z);
             previewMesh.position.copy(newPos);previewMesh.rotation.copy(snapTarget.rotation);previewMesh.visible=true;
         }
