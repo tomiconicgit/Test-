@@ -21,7 +21,7 @@ yaw.add(pitch); pitch.add(camera); scene.add(yaw);
 camera.position.set(0,0,0);
 
 // Lights
-const hemi = new THREE.HemisphereLight(0xcfe8ff, 0x807060, 0.8);
+const hemi = new THREE.HemisphereLight(0xcfe8ff, 0xa09070, 1.0);
 scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xffffff, 0.9);
 sun.position.set(60,120,30);
@@ -38,8 +38,10 @@ const EYE = 1.6;             // eye height over ground
 let activeBlock = BLOCK.METAL;
 
 // Highlight box
-const highlightBox = new THREE.BoxHelper(new THREE.Object3D(), 0xffffff);
+const highlightBox = new THREE.BoxHelper(new THREE.Object3D(), 0x88ff88);
 highlightBox.visible = false;
+highlightBox.material.transparent = true;
+highlightBox.material.opacity = 0.6;
 scene.add(highlightBox);
 
 // Current hit for actions
@@ -71,7 +73,7 @@ window.addEventListener('pointerdown', e=>{
 window.addEventListener('pointermove', e=>{
   if(e.pointerId!==lookId) return;
   const dx=e.clientX-lastX, dy=e.clientY-lastY; lastX=e.clientX; lastY=e.clientY;
-  const sens = 0.15 * (1/renderer.getPixelRatio());
+  const sens = 0.3 * (1/renderer.getPixelRatio());
   yaw.rotation.y -= dx * sens * 0.01;
   pitch.rotation.x -= dy * sens * 0.01;
   pitch.rotation.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, pitch.rotation.x));
