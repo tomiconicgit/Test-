@@ -1,0 +1,34 @@
+:root { --fg:#eaeaea; --bg:#0b0d10; --glass:rgba(255,255,255,.06); --accent:#4da3ff; }
+* { box-sizing:border-box; touch-action:none; }
+html,body { margin:0; height:100%; background:#000; color:var(--fg); font-family:Inter,system-ui,Arial; }
+#c { position:fixed; inset:0; display:block; }
+
+#hud { position:fixed; inset:0; pointer-events:none; }
+#crosshair {
+  position:absolute; left:50%; top:50%; width:10px; height:10px; margin:-5px 0 0 -5px;
+  border:2px solid rgba(255,255,255,.6); border-radius:50%; pointer-events:none;
+}
+
+#hint { position:absolute; bottom:10px; left:50%; transform:translateX(-50%);
+  background:var(--glass); padding:6px 10px; border-radius:10px; font-size:12px; pointer-events:none; }
+
+#joystick { position:absolute; left:18px; bottom:18px; width:140px; height:140px; pointer-events:auto; }
+
+#rightPanel {
+  position:absolute; right:18px; bottom:18px; width:180px; display:flex; flex-direction:column; gap:12px; pointer-events:auto;
+}
+#blockPicker { display:flex; gap:10px; padding:8px 10px; background:var(--glass); border:1px solid rgba(255,255,255,.08); border-radius:12px; }
+#blockPicker label { font-size:12px; display:flex; align-items:center; gap:6px; }
+
+#actionButtons { display:flex; gap:10px; }
+#actionButtons button {
+  flex:1; padding:12px 10px; border-radius:12px; border:1px solid rgba(255,255,255,.12);
+  background:linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.04));
+  color:var(--fg); font-weight:600; letter-spacing:.2px;
+}
+#btnPlace { border-color:rgba(77,163,255,.35); }
+#btnRemove { border-color:rgba(255,100,100,.35); }
+
+@media (orientation:portrait) {
+  #hint::after { content:" • Tip: rotate phone for landscape"; }
+}
