@@ -1,4 +1,5 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js';
+import { mergeGeometries } from 'https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/utils/BufferGeometryUtils.js';
 import { makeMaterials } from './engine/Materials.js';
 import { VoxelWorld, BLOCK } from './engine/VoxelWorld.js';
 import { Joystick } from './ui/Joystick.js';
@@ -20,10 +21,9 @@ const yaw = new THREE.Object3D(); const pitch = new THREE.Object3D();
 yaw.add(pitch); pitch.add(camera); scene.add(yaw);
 camera.position.set(0,0,0);
 
-// Lights - 4-WAY LIGHTING SYSTEM
+// Lights
 const hemi = new THREE.HemisphereLight(0xddeeff, 0x998877, 1.2);
 scene.add(hemi);
-
 const sun = new THREE.DirectionalLight(0xffffff, 0.8);
 sun.position.set(100, 100, 50);
 sun.castShadow = true;
@@ -31,15 +31,12 @@ sun.shadow.mapSize.set(2048, 2048);
 sun.shadow.camera.left = -80; sun.shadow.camera.right = 80;
 sun.shadow.camera.top = 80; sun.shadow.camera.bottom = -80;
 scene.add(sun);
-
 const lightFill1 = new THREE.DirectionalLight(0xffffff, 0.4);
 lightFill1.position.set(-100, 60, -50);
 scene.add(lightFill1);
-
 const lightFill2 = new THREE.DirectionalLight(0xffffff, 0.4);
 lightFill2.position.set(50, 60, -100);
 scene.add(lightFill2);
-
 const lightFill3 = new THREE.DirectionalLight(0xffffff, 0.4);
 lightFill3.position.set(-50, 60, 100);
 scene.add(lightFill3);
@@ -47,35 +44,112 @@ scene.add(lightFill3);
 const materials = await makeMaterials();
 const WORLD = new VoxelWorld(THREE, materials, { scene, sizeX:100, sizeZ:100, minY:-30, maxY:500 });
 
-// Player state
+// Player/State
 const SPEED = 4.0;
 const EYE = 1.6;
-let activeBlock = BLOCK.METAL;
+let activeItem = 'METAL'; // Now tracks all placeable items
+const props = []; // Array to hold non-voxel objects like trusses
+const raycaster = new THREE.Raycaster();
 
-// Wireframe highlight for targeted block
+// --- NEW TRUSS GEOMETRY ---
+function createTrussGeometry() {
+  const beamSize = 0.15;
+  const length = 4;
+  const height = 4;
+  const depth = 0.5;
+
+  const geometries = [];
+
+  // Frame
+  const horiz = new THREE.BoxGeometry(length, beamSize, beamSize);
+  const vert = new THREE.BoxGeometry(beamSize, height, beamSize);
+  
+  const topBeam = horiz.clone().translate(0, height / 2 - beamSize / 2, 0);
+  const bottomBeam = horiz.clone().translate(0, -height / 2 + beamSize / 2, 0);
+  const leftBeam = vert.clone().translate(-length / 2 + beamSize / 2, 0, 0);
+  const rightBeam = vert.clone().translate(length / 2 - beamSize / 2, 0, 0);
+  geometries.push(topBeam, bottomBeam, leftBeam, rightBeam);
+  
+  // Bracing
+  const braceGeom = new THREE.BoxGeometry(beamSize, Math.hypot(length/2, height), beamSize);
+  const brace1 = braceGeom.clone();
+  brace1.rotateZ(Math.atan2(height, length/2));
+  brace1.translate(-length/4, 0, 0);
+  
+  const brace2 = braceGeom.clone();
+  brace2.rotateZ(-Math.atan2(height, length/2));
+  brace2.translate(length/4, 0, 0);
+
+  geometries.push(brace1, brace2);
+
+  const singleSide = mergeGeometries(geometries);
+  const otherSide = singleSide.clone().translate(0, 0, depth - beamSize);
+  
+  // Cross members connecting the two sides
+  for(let i=0; i<5; i++){
+    const cross = new THREE.BoxGeometry(beamSize, beamSize, depth);
+    cross.translate(-length/2 + beamSize/2 + i*(length/4), height/2 - beamSize/2, depth/2 - beamSize/2);
+    geometries.push(cross);
+    const cross2 = cross.clone().translate(0, -height+beamSize, 0);
+    geometries.push(cross2);
+  }
+
+  const finalGeom = mergeGeometries([singleSide, otherSide, ...geometries.slice(-10)]);
+  finalGeom.translate(0, height/2, -depth/2); // Position pivot at bottom-center
+  return finalGeom;
+}
+
+const trussGeometry = createTrussGeometry();
+const trussPreview = new THREE.Mesh(trussGeometry, new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.4 }));
+trussPreview.visible = false;
+scene.add(trussPreview);
+
+// Block highlight
 const boxGeom = new THREE.BoxGeometry(1, 1, 1);
 const edges = new THREE.EdgesGeometry(boxGeom);
 const lineMat = new THREE.LineBasicMaterial({ color: 0xffffff, linewidth: 2, transparent: true, opacity: 0.9 });
 const highlightWireframe = new THREE.LineSegments(edges, lineMat);
-highlightWireframe.visible = false;
 scene.add(highlightWireframe);
 
 let currentHit = null;
 
 // UI wiring
 const js = new Joystick(document.getElementById('joystick'));
+document.getElementById('itemPicker').addEventListener('change', e => { activeItem = e.target.value; });
+
 document.getElementById('btnPlace').addEventListener('click', () => {
   if (!currentHit) return;
-  const p = currentHit.prev;
-  if(!inWorldXZ(p.x,p.z) || p.y < WORLD.minY || p.y > WORLD.maxY) return;
-  WORLD.setVoxel(p.x, p.y, p.z, activeBlock, true);
+
+  const item = activeItem;
+  if (item === 'METAL' || item === 'CONCRETE') {
+    const block = (item === 'METAL') ? BLOCK.METAL : BLOCK.CONCRETE;
+    const p = currentHit.prev;
+    if(!inWorldXZ(p.x,p.z) || p.y < WORLD.minY || p.y > WORLD.maxY) return;
+    WORLD.setVoxel(p.x, p.y, p.z, block, true);
+  } else if (item === 'TRUSS') {
+    const newTruss = new THREE.Mesh(trussGeometry, materials.metal);
+    newTruss.position.copy(trussPreview.position);
+    newTruss.rotation.copy(trussPreview.rotation);
+    newTruss.castShadow = newTruss.receiveShadow = true;
+    newTruss.name = "truss"; // For removal
+    scene.add(newTruss);
+    props.push(newTruss);
+  }
 });
+
 document.getElementById('btnRemove').addEventListener('click', () => {
-  if (!currentHit) return;
-  WORLD.setVoxel(currentHit.pos.x, currentHit.pos.y, currentHit.pos.z, BLOCK.AIR, true);
-});
-document.querySelectorAll('input[name="block"]').forEach(r=>{
-  r.addEventListener('change', e => activeBlock = (e.target.value==='METAL') ? BLOCK.METAL : BLOCK.CONCRETE);
+  // Prioritize removing props
+  raycaster.setFromCamera({x:0, y:0}, camera); // Ray from center of screen
+  const intersects = raycaster.intersectObjects(props);
+  if (intersects.length > 0) {
+    const obj = intersects[0].object;
+    scene.remove(obj);
+    props.splice(props.indexOf(obj), 1);
+    if(obj.geometry) obj.geometry.dispose();
+  } else { // Fallback to removing blocks
+    if (!currentHit) return;
+    WORLD.setVoxel(currentHit.pos.x, currentHit.pos.y, currentHit.pos.z, BLOCK.AIR, true);
+  }
 });
 
 // Look (right-half drag)
@@ -94,15 +168,14 @@ window.addEventListener('pointermove', e=>{
 });
 window.addEventListener('pointerup', e=>{ if(e.pointerId===lookId) lookId=null; });
 
-// Movement & ground follow
+// Main Loop
 let lastT = performance.now();
 tick();
 function tick(){
   requestAnimationFrame(tick);
   const t = performance.now(); const dt = Math.min((t-lastT)/1000, 0.05); lastT=t;
 
-  const forward = -js.axY;
-  const strafe  =  js.axX;
+  const forward = -js.axY; const strafe = js.axX;
   const dir = getForward();
   const right = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0,1,0)).normalize();
   yaw.position.addScaledVector(dir, forward * SPEED * dt);
@@ -115,22 +188,28 @@ function tick(){
   yaw.position.y += (targetY - yaw.position.y) * 0.35;
 
   currentHit = raycastVoxel(yaw.position, getLookDirection(), 8.0);
-  if (currentHit) {
-    highlightWireframe.visible = true;
-    highlightWireframe.position.set(currentHit.pos.x + 0.5, currentHit.pos.y + 0.5, currentHit.pos.z + 0.5);
-    highlightWireframe.scale.set(1.002, 1.002, 1.002);
-  } else {
-    highlightWireframe.visible = false;
-  }
+  
+  // Update highlights based on active item
+  const isBlockActive = activeItem === 'METAL' || activeItem === 'CONCRETE';
+  highlightWireframe.visible = isBlockActive && currentHit;
+  trussPreview.visible = activeItem === 'TRUSS' && currentHit;
 
+  if (currentHit) {
+    if(isBlockActive) {
+      highlightWireframe.position.set(currentHit.pos.x + 0.5, currentHit.pos.y + 0.5, currentHit.pos.z + 0.5);
+    } else if (activeItem === 'TRUSS') {
+      const pos = currentHit.prev; // Place in empty space
+      trussPreview.position.set(pos.x, pos.y, pos.z);
+      // Align to player's direction (snap to 90 degrees)
+      const angle = Math.round(yaw.rotation.y / (Math.PI / 2)) * (Math.PI / 2);
+      trussPreview.rotation.y = angle;
+    }
+  }
   renderer.render(scene, camera);
 }
 
 // ===== helpers =====
-function clampXZ(v){
-  v.x = Math.max(0.001, Math.min(99.999, v.x));
-  v.z = Math.max(0.001, Math.min(99.999, v.z));
-}
+function clampXZ(v){ v.x = Math.max(0.001, Math.min(99.999, v.x)); v.z = Math.max(0.001, Math.min(99.999, v.z)); }
 function inWorldXZ(x,z){ return x>=0 && z>=0 && x<100 && z<100; }
 function getForward(){
   const f = new THREE.Vector3(0,0,-1);
@@ -144,54 +223,36 @@ function getLookDirection(){
   d.normalize();
   return d;
 }
-
-// Fast voxel ray (3D DDA) - CORRECTED
 function raycastVoxel(origin, dir, maxDist){
   const pos = new THREE.Vector3().copy(origin);
   const step = new THREE.Vector3(Math.sign(dir.x)||1, Math.sign(dir.y)||1, Math.sign(dir.z)||1);
-  const tDelta = new THREE.Vector3(
-    Math.abs(1/dir.x)||1e9,
-    Math.abs(1/dir.y)||1e9,
-    Math.abs(1/dir.z)||1e9
-  );
+  const tDelta = new THREE.Vector3( Math.abs(1/dir.x)||1e9, Math.abs(1/dir.y)||1e9, Math.abs(1/dir.z)||1e9 );
   let voxel = new THREE.Vector3(Math.floor(pos.x), Math.floor(pos.y), Math.floor(pos.z));
-  const bound = new THREE.Vector3(
-    voxel.x + (step.x > 0 ? 1 : 0),
-    voxel.y + (step.y > 0 ? 1 : 0),
-    voxel.z + (step.z > 0 ? 1 : 0)
-  );
-  
-  // CORRECTED tMax calculation
+  const bound = new THREE.Vector3( voxel.x + (step.x > 0 ? 1 : 0), voxel.y + (step.y > 0 ? 1 : 0), voxel.z + (step.z > 0 ? 1 : 0) );
   const tMax = new THREE.Vector3(
     dir.x !== 0 ? (bound.x - pos.x) / dir.x : 1e9,
     dir.y !== 0 ? (bound.y - pos.y) / dir.y : 1e9,
     dir.z !== 0 ? (bound.z - pos.z) / dir.z : 1e9
   );
-
   let dist = 0; let lastVoxel = voxel.clone();
   for(let i=0;i<256;i++){
     if(inWorldXZ(voxel.x, voxel.z)){
       const id = WORLD.getVoxel(voxel.x, voxel.y, voxel.z);
-      if(id!==BLOCK.AIR){
-        return { pos: voxel.clone(), prev: lastVoxel.clone(), id };
-      }
+      if(id!==BLOCK.AIR){ return { pos: voxel.clone(), prev: lastVoxel.clone(), id }; }
     }
     if(tMax.x < tMax.y){
       if(tMax.x < tMax.z){ lastVoxel = voxel.clone(); voxel.x += step.x; dist=tMax.x; tMax.x += tDelta.x; }
-      else               { lastVoxel = voxel.clone(); voxel.z += step.z; dist=tMax.z; tMax.z += tDelta.z; }
+      else { lastVoxel = voxel.clone(); voxel.z += step.z; dist=tMax.z; tMax.z += tDelta.z; }
     }else{
       if(tMax.y < tMax.z){ lastVoxel = voxel.clone(); voxel.y += step.y; dist=tMax.y; tMax.y += tDelta.y; }
-      else               { lastVoxel = voxel.clone(); voxel.z += step.z; dist=tMax.z; tMax.z += tDelta.z; }
+      else { lastVoxel = voxel.clone(); voxel.z += step.z; dist=tMax.z; tMax.z += tDelta.z; }
     }
     if(dist>maxDist) break;
   }
   return null;
 }
 
-// Start position middle of map
 yaw.position.set(50.5, 2.6, 50.5);
-
-// Resize
 addEventListener('resize', ()=>{
   renderer.setSize(innerWidth, innerHeight); camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix();
 });
