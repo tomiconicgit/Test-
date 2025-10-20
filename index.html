@@ -16,12 +16,19 @@
     <div id="joystick"></div>
 
     <div id="rightPanel">
-      <div id="blockPicker">
-        <label><input type="radio" name="block" value="METAL" checked> Metal</label>
-        <label><input type="radio" name="block" value="CONCRETE"> Concrete</label>
+      <div class="select-wrapper">
+        <select id="itemPicker">
+          <option value="METAL">Metal Block</option>
+          <option value="CONCRETE">Concrete Block</option>
+          <option value="WALL">Thin Wall</option>
+          <option value="PANE">Glass Pane</option>
+          <option value="DOOR">Door</option>
+        </select>
       </div>
+      
       <div id="actionButtons">
         <button id="btnPlace">Place</button>
+        <button id="btnUse">Use</button>
         <button id="btnRemove">Remove</button>
       </div>
     </div>
