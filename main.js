@@ -15,6 +15,7 @@ import { createFloorGeometry } from './engine/structures/floor.js';
 import { createGlassPaneGeometry } from './engine/structures/glass.js';
 import { createSlopeGeometry } from './engine/structures/slope.js';
 import { createCylinderGeometry } from './engine/structures/cylinder.js';
+import { createPipeGeometry } from './engine.structures/pipe.js'; // <-- ADD THIS
 
 // --- INITIALIZATION ---
 const canvas = document.getElementById('c');
@@ -52,6 +53,7 @@ const propGeometries = {
     'FLOOR': createFloorGeometry(),
     'SLOPE': createSlopeGeometry(),
     'CYLINDER': createCylinderGeometry(),
+    'PIPE': createPipeGeometry(), // <-- ADD THIS
 };
 
 // --- CREATE CONTROLLERS AND WORLD ---
@@ -62,7 +64,7 @@ const world = new VoxelWorld(THREE, materials, { scene, sizeX:100, sizeZ:100, mi
 world.props = []; // Add props array to world for the placement controller to use
 
 // --- UI STATE ---
-let activeItem = 'BLOCK';
+let activeItem = 'VOXEL'; // <-- CHANGE THIS
 let activeMaterial = materials.metal;
 document.getElementById('itemPicker').addEventListener('change', e => { activeItem = e.target.value; });
 document.getElementById('texturePicker').addEventListener('change', e => { activeMaterial = materials[e.target.value] || materials.metal; });
