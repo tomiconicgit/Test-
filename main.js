@@ -1,4 +1,5 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js';
+import * as BufferGeometryUtils from 'https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/utils/BufferGeometryUtils.js';
 import { makeMaterials } from './engine/Materials.js';
 import { VoxelWorld, BLOCK } from './engine/VoxelWorld.js';
 import { Joystick } from './ui/Joystick.js';
@@ -37,26 +38,30 @@ const materials = await makeMaterials();
 const WORLD = new VoxelWorld(THREE, materials, { scene, sizeX:100, sizeZ:100, minY:-30, maxY:500 });
 
 // Player/State
-const SPEED = 5.0;
-const EYE = 1.6;
-let activeItem = 'BLOCK';
-let isFlying = false;
-let isSnapping = false;
-let snapTarget = null;
-const props = [];
-const raycaster = new THREE.Raycaster();
-raycaster.far = 8.0;
+const SPEED = 5.0; const EYE = 1.6; let activeItem = 'BLOCK'; let isFlying = false; let isSnapping = false; let snapTarget = null;
+const props = []; const raycaster = new THREE.Raycaster(); raycaster.far = 8.0;
 
 // --- PROP GEOMETRIES ---
 function createSlopeGeometry() {
-    const shape = new THREE.Shape();
-    shape.moveTo(0, 0);
-    shape.lineTo(1, 0);
-    shape.lineTo(0, 1);
-    const extrudeSettings = { depth: 1, bevelEnabled: false };
-    const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
-    geometry.translate(-0.5, -0.5, -0.5); // Center and pivot
-    geometry.translate(0, 0.5, 0); // Set pivot to bottom
+    const shape = new THREE.Shape().moveTo(0,0).lineTo(1,0).lineTo(0,1);
+    const geometry = new THREE.ExtrudeGeometry(shape, { depth: 1, bevelEnabled: false });
+    geometry.translate(-0.5, -0.5, -0.5).translate(0, 0.5, 0);
+    return geometry;
+}
+
+function createHexWallGeometry() {
+    const wallShape = new THREE.Shape();
+    wallShape.moveTo(-0.5, -0.5); wallShape.lineTo(0.5, -0.5); wallShape.lineTo(0.5, 0.5); wallShape.lineTo(-0.5, 0.5);
+    const hexHole = new THREE.Path();
+    const r = 0.4;
+    for (let i = 0; i < 6; i++) {
+        const a = (i/6)*Math.PI*2;
+        if (i === 0) hexHole.moveTo(Math.cos(a)*r, Math.sin(a)*r); else hexHole.lineTo(Math.cos(a)*r, Math.sin(a)*r);
+    }
+    hexHole.closePath();
+    wallShape.holes.push(hexHole);
+    const geometry = new THREE.ExtrudeGeometry(wallShape, { depth: 0.1, bevelEnabled: false });
+    geometry.translate(0, 0, -0.05).translate(0, 0.5, 0);
     return geometry;
 }
 
@@ -64,31 +69,32 @@ const wallGeo = new THREE.BoxGeometry(1, 1, 0.1); wallGeo.translate(0, 0.5, 0);
 const paneGeo = new THREE.BoxGeometry(1, 1, 0.05); paneGeo.translate(0, 0.5, 0);
 const floorGeo = new THREE.BoxGeometry(1, 0.1, 1); floorGeo.translate(0, 0.05, 0);
 const slopeGeo = createSlopeGeometry();
+const cylinderGeo = new THREE.CylinderGeometry(0.5, 0.5, 1, 24); cylinderGeo.translate(0, 0.5, 0);
+const hexWallGeo = createHexWallGeometry();
+const pipeGeo = new THREE.CylinderGeometry(0.2, 0.2, 1, 16); pipeGeo.rotateX(Math.PI/2);
+const pipeEndGeo = new THREE.CylinderGeometry(0.3, 0.3, 0.1, 16); pipeEndGeo.rotateX(Math.PI/2);
+const pipeFloorGeo = BufferGeometryUtils.mergeGeometries([ new THREE.TorusGeometry(0.25,0.2,8,16,Math.PI/2).rotateY(Math.PI/2).translate(0,0.25,0.25), new THREE.CylinderGeometry(0.2,0.2,0.5,16).translate(0,0.25,0) ]).translate(0,0.5,-0.25);
 
 const propGeometries = {
-    'WALL': wallGeo, 
-    'PANE': paneGeo, 
-    'FLOOR': floorGeo,
-    'SLOPE': slopeGeo
+    'WALL': wallGeo, 'PANE': paneGeo, 'FLOOR': floorGeo, 'SLOPE': slopeGeo,
+    'CYLINDER': cylinderGeo, 'HEX_WALL': hexWallGeo, 'PIPE': pipeGeo,
+    'PIPE_END': pipeEndGeo, 'PIPE_FLOOR': pipeFloorGeo,
 };
 
 // Previews & Highlights
 const previewMat = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.4, side: THREE.DoubleSide });
-const previewMesh = new THREE.Mesh(new THREE.BoxGeometry(), previewMat); // Start with generic geometry
-previewMesh.visible = false;
-scene.add(previewMesh);
+const previewMesh = new THREE.Mesh(new THREE.BoxGeometry(), previewMat);
+previewMesh.visible = false; scene.add(previewMesh);
 const voxelHighlight = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1.001, 1.001, 1.001)), new THREE.LineBasicMaterial({ color: 0xffffff, linewidth: 3 }));
 scene.add(voxelHighlight);
 const propHighlight = new THREE.BoxHelper(new THREE.Object3D(), 0xffffff);
-propHighlight.visible = false;
-scene.add(propHighlight);
+propHighlight.visible = false; scene.add(propHighlight);
 
 let currentHit = null;
 
-// Gamepad State and UI wiring
+// Gamepad & UI Wiring (unchanged)
 let gamepad = null; let r2Pressed = false, l2Pressed = false, aPressed = false, r1Pressed = false; let lastAPressTime = 0;
-window.addEventListener('gamepadconnected', (e) => { gamepad = e.gamepad; });
-window.addEventListener('gamepaddisconnected', () => { gamepad = null; });
+window.addEventListener('gamepadconnected', (e) => { gamepad = e.gamepad; }); window.addEventListener('gamepaddisconnected', () => { gamepad = null; });
 const js = new Joystick(document.getElementById('joystick'));
 document.getElementById('itemPicker').addEventListener('change', e => { activeItem = e.target.value; });
 
@@ -96,59 +102,33 @@ function placeAction() {
     if (!currentHit && !isSnapping) return;
     if (isSnapping && previewMesh.visible) { placeProp(); isSnapping = false; snapTarget = null; return; }
     if (currentHit) {
-        if (activeItem === 'BLOCK') {
-            WORLD.setVoxel(currentHit.prev.x, currentHit.prev.y, currentHit.prev.z, BLOCK.METAL, true);
-        } else if (propGeometries[activeItem] && previewMesh.visible) {
-            placeProp();
-        }
+        if (activeItem === 'BLOCK') { WORLD.setVoxel(currentHit.prev.x, currentHit.prev.y, currentHit.prev.z, BLOCK.METAL, true); }
+        else if (propGeometries[activeItem] && previewMesh.visible) { placeProp(); }
     }
 }
-
 function placeProp() {
     let material = materials.metal;
     if (activeItem === 'PANE') material = materials.glass;
     const newProp = new THREE.Mesh(propGeometries[activeItem], material);
-    newProp.position.copy(previewMesh.position);
-    newProp.rotation.copy(previewMesh.rotation);
-    newProp.castShadow = newProp.receiveShadow = true;
-    newProp.name = activeItem.toLowerCase();
-    
-    if (activeItem.includes('FLOOR')) newProp.userData = { height: 0.1 };
-    else newProp.userData = { height: 1 };
-    
-    scene.add(newProp);
-    props.push(newProp);
+    newProp.position.copy(previewMesh.position); newProp.rotation.copy(previewMesh.rotation);
+    newProp.castShadow = newProp.receiveShadow = true; newProp.name = activeItem.toLowerCase();
+    if (activeItem.includes('FLOOR')) newProp.userData = { height: 0.1 }; else newProp.userData = { height: 1 };
+    scene.add(newProp); props.push(newProp);
 }
-
 function removeAction() {
-    raycaster.setFromCamera({ x: 0, y: 0 }, camera);
-    const intersects = raycaster.intersectObjects(props);
-    if (intersects.length > 0) {
-        const obj = intersects[0].object;
-        if(snapTarget === obj) { isSnapping = false; snapTarget = null; }
-        scene.remove(obj);
-        props.splice(props.indexOf(obj), 1);
-        if (obj.geometry) obj.geometry.dispose();
-    } else {
-        if (!currentHit || !currentHit.isVoxel) return;
-        WORLD.setVoxel(currentHit.pos.x, currentHit.pos.y, currentHit.pos.z, BLOCK.AIR, true);
-    }
+    raycaster.setFromCamera({ x: 0, y: 0 }, camera); const intersects = raycaster.intersectObjects(props);
+    if (intersects.length > 0) { const obj = intersects[0].object; if(snapTarget === obj) { isSnapping = false; snapTarget = null; } scene.remove(obj); props.splice(props.indexOf(obj), 1); if (obj.geometry) obj.geometry.dispose(); }
+    else { if (!currentHit || !currentHit.isVoxel) return; WORLD.setVoxel(currentHit.pos.x, currentHit.pos.y, currentHit.pos.z, BLOCK.AIR, true); }
 }
-document.getElementById('btnPlace').addEventListener('click', placeAction);
-document.getElementById('btnRemove').addEventListener('click', removeAction);
+document.getElementById('btnPlace').addEventListener('click', placeAction); document.getElementById('btnRemove').addEventListener('click', removeAction);
 
 // MAIN LOOP
 let lastT = performance.now();
 tick();
-
 function tick() {
-    requestAnimationFrame(tick);
-    const t = performance.now(); const dt = Math.min((t - lastT) / 1000, 0.05); lastT = t;
-    let targetedProp = null;
-
+    requestAnimationFrame(tick); const t = performance.now(); const dt = Math.min((t - lastT) / 1000, 0.05); lastT = t; let targetedProp = null;
     if (navigator.getGamepads && navigator.getGamepads()[0]) {
-        gamepad = navigator.getGamepads()[0];
-        const deadzone=0.15; const ax0=gamepad.axes[0]; const ax1=gamepad.axes[1]; if(Math.abs(ax0)>deadzone||Math.abs(ax1)>deadzone){js.axX=ax0;js.axY=ax1;}else{js.axX=0;js.axY=0;}
+        gamepad = navigator.getGamepads()[0]; const deadzone=0.15; const ax0=gamepad.axes[0]; const ax1=gamepad.axes[1]; if(Math.abs(ax0)>deadzone||Math.abs(ax1)>deadzone){js.axX=ax0;js.axY=ax1;}else{js.axX=0;js.axY=0;}
         const ax2=gamepad.axes[2]; const ax3=gamepad.axes[3]; if(Math.abs(ax2)>deadzone)yaw.rotation.y-=ax2*2.5*dt; if(Math.abs(ax3)>deadzone)pitch.rotation.x=Math.max(-Math.PI/2,Math.min(Math.PI/2,pitch.rotation.x-ax3*2.5*dt));
         if(gamepad.buttons[7].pressed&&!r2Pressed){placeAction();r2Pressed=true;}else if(!gamepad.buttons[7].pressed){r2Pressed=false;}
         if(gamepad.buttons[6].pressed&&!l2Pressed){removeAction();l2Pressed=true;}else if(!gamepad.buttons[6].pressed){l2Pressed=false;}
@@ -156,20 +136,19 @@ function tick() {
         if(isFlying){const flySpeed=SPEED*dt;if(gamepad.buttons[0].pressed)yaw.position.y+=flySpeed;if(gamepad.buttons[2].pressed)yaw.position.y-=flySpeed;}
         if(gamepad.buttons[5].pressed&&!r1Pressed){raycaster.setFromCamera({x:0,y:0},camera);const intersects=raycaster.intersectObjects(props);if(intersects.length>0){targetedProp=intersects[0].object;if(isSnapping&&snapTarget===targetedProp){isSnapping=false;snapTarget=null;}else{isSnapping=true;snapTarget=targetedProp;}}r1Pressed=true;}else if(!gamepad.buttons[5].pressed){r1Pressed=false;}
     }
-    
     const forward=-js.axY; const strafe=js.axX; const dir=getForward(isFlying); const right=new THREE.Vector3().crossVectors(dir,new THREE.Vector3(0,1,0)).normalize();
     yaw.position.addScaledVector(dir,forward*SPEED*dt); yaw.position.addScaledVector(right,strafe*SPEED*dt); clampXZ(yaw.position);
     if(!isFlying){const gx=Math.floor(yaw.position.x),gz=Math.floor(yaw.position.z);const top=WORLD.topY(gx,gz);const targetY=(top<WORLD.minY?0:top+1)+EYE;yaw.position.y+=(targetY-yaw.position.y)*0.35;}
-    
     currentHit = null; voxelHighlight.visible = false; propHighlight.visible = false; previewMesh.visible = false;
     raycaster.setFromCamera({x:0,y:0},camera); const propIntersects=raycaster.intersectObjects(props,false); const propHit=propIntersects.length>0?propIntersects[0]:null; targetedProp=propHit?propHit.object:null;
     if(isSnapping&&targetedProp!==snapTarget){isSnapping=false;snapTarget=null;}
-
     if(isSnapping&&snapTarget){
         propHighlight.setFromObject(snapTarget);propHighlight.visible=true;
         if(propGeometries[activeItem]){
             previewMesh.geometry=propGeometries[activeItem];
-            const newY=snapTarget.position.y+snapTarget.userData.height;let newPos=new THREE.Vector3(snapTarget.position.x,newY,snapTarget.position.z);
+            const targetBox = new THREE.Box3().setFromObject(snapTarget);
+            const newY = targetBox.max.y; // CORRECTED Stacking Logic
+            let newPos = new THREE.Vector3(snapTarget.position.x,newY,snapTarget.position.z);
             previewMesh.position.copy(newPos);previewMesh.rotation.copy(snapTarget.rotation);previewMesh.visible=true;
         }
     }else{
@@ -187,7 +166,6 @@ function tick() {
     }
     renderer.render(scene,camera);
 }
-
 function clampXZ(v){v.x=Math.max(0.001,Math.min(99.999,v.x));v.z=Math.max(0.001,Math.min(99.999,v.z));}
 function inWorldXZ(x,z){return x>=0&&z>=0&&x<100&&z<100;}
 function getForward(flying=false){const f=new THREE.Vector3(0,0,-1);f.applyQuaternion(pitch.quaternion).applyQuaternion(yaw.quaternion);if(!flying)f.y=0;f.normalize();return f;}
@@ -196,6 +174,5 @@ function raycastVoxel(origin,dir,maxDist){const pos=new THREE.Vector3().copy(ori
 lastVoxel.copy(voxel);if(tMax.x<tMax.y){if(tMax.x<tMax.z){voxel.x+=step.x;dist=tMax.x;tMax.x+=tDelta.x;}else{voxel.z+=step.z;dist=tMax.z;tMax.z+=tDelta.z;}}else{if(tMax.y<tMax.z){voxel.y+=step.y;dist=tMax.y;tMax.y+=tDelta.y;}else{voxel.z+=step.z;dist=tMax.z;tMax.z+=tDelta.z;}}
 if(dist>maxDist)break;}
 return null;}
-
 yaw.position.set(50.5, 2.6, 50.5);
 addEventListener('resize', ()=>{ renderer.setSize(innerWidth, innerHeight); camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); });
