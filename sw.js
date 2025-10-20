@@ -2,7 +2,7 @@
 
 // --- CONFIGURATION ---
 // Increment this version every time you push updates
-const CACHE_VERSION = 'v1.0.1'; // <-- MODIFICATION 1: Incremented version
+const CACHE_VERSION = 'v1.0.2'; // <-- MODIFICATION 1: Incremented version
 const CACHE_NAME = `builder-pwa-${CACHE_VERSION}`;
 
 // List of all the files that make up the "app shell"
