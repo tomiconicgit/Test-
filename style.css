@@ -5,7 +5,6 @@ html,body { margin:0; height:100%; background:#000; color:var(--fg); font-family
 
 #hud { position:fixed; inset:0; pointer-events:none; }
 #crosshair {
-  /* Restored the center dot and made it slightly more visible */
   position:absolute;
   left:50%;
   top:50%;
@@ -19,7 +18,7 @@ html,body { margin:0; height:100%; background:#000; color:var(--fg); font-family
 
 #joystick { 
   position:absolute; 
-  left: 24px;   /* Positioned in the bottom-left corner */
+  left: 24px;
   bottom: 24px; 
   width: 160px;
   height: 160px; 
@@ -36,16 +35,37 @@ html,body { margin:0; height:100%; background:#000; color:var(--fg); font-family
   gap:16px;
   pointer-events:auto;
 }
-#blockPicker { 
-  display:flex; 
-  gap:10px; 
-  padding:12px 14px;
-  background:var(--glass); 
-  border:1px solid rgba(255,255,255,.08); 
-  border-radius:16px;
+
+/* New Dropdown Styles */
+.select-wrapper {
+  position: relative;
+  background: var(--glass);
+  border: 1px solid rgba(255, 255, 255, .08);
+  border-radius: 16px;
   backdrop-filter: blur(5px);
 }
-#blockPicker label { font-size:14px; display:flex; align-items:center; gap:6px; }
+#itemPicker {
+  width: 100%;
+  padding: 14px;
+  background: transparent;
+  border: none;
+  color: var(--fg);
+  font-size: 14px;
+  font-weight: 600;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+}
+.select-wrapper::after {
+  content: '▼';
+  font-size: 12px;
+  color: rgba(255,255,255,0.5);
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
 
 #actionButtons { display:flex; gap:12px; }
 #actionButtons button {
