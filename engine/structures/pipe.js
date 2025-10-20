@@ -1,4 +1,5 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js';
+// This import is correct and necessary. It loads the function to merge geometries.
 import { mergeGeometries } from 'https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/utils/BufferGeometryUtils.module.js';
 
 // --- Constants for a consistent look ---
@@ -38,7 +39,7 @@ export function createPipeStraightGeometry() {
  * It curves from Y-up to X-positive.
  */
 export function createPipeElbowGeometry() {
-  // Use a curve just like you had, but with the new radius
+  // Use a curve
   const v0 = new THREE.Vector3(0, 0, 0);
   const v1 = new THREE.Vector3(0, 0.5, 0);
   const v2 = new THREE.Vector3(0.5, 0.5, 0);
