@@ -15,7 +15,15 @@ import { createFloorGeometry } from './engine/structures/floor.js';
 import { createGlassPaneGeometry } from './engine/structures/glass.js';
 import { createSlopeGeometry } from './engine/structures/slope.js';
 import { createCylinderGeometry } from './engine/structures/cylinder.js';
-import { createPipeGeometry } from './engine/structures/pipe.js'; // <-- FIX IS HERE
+// --- MODIFICATION HERE ---
+// Import the 4 new pipe functions
+import { 
+    createPipeStraightGeometry, 
+    createPipeElbowGeometry, 
+    createPipeTeeGeometry, 
+    createPipeCrossGeometry 
+} from './engine/structures/pipe.js';
+// --- END MODIFICATION ---
 
 // --- INITIALIZATION ---
 const canvas = document.getElementById('c');
@@ -46,6 +54,8 @@ const lightFill3 = new THREE.DirectionalLight(0xffffff, 0.4); lightFill3.positio
 
 const materials = await makeMaterials();
 
+// --- MODIFICATION HERE ---
+// Update the propGeometries object
 const propGeometries = {
     'BLOCK': createBlockGeometry(),
     'WALL': createWallGeometry(),
@@ -53,8 +63,12 @@ const propGeometries = {
     'FLOOR': createFloorGeometry(),
     'SLOPE': createSlopeGeometry(),
     'CYLINDER': createCylinderGeometry(),
-    'PIPE': createPipeGeometry(),
+    'PIPE_STRAIGHT': createPipeStraightGeometry(),
+    'PIPE_ELBOW': createPipeElbowGeometry(),
+    'PIPE_TEE': createPipeTeeGeometry(),
+    'PIPE_CROSS': createPipeCrossGeometry(),
 };
+// --- END MODIFICATION ---
 
 // --- CREATE CONTROLLERS AND WORLD ---
 const input = new InputController(new Joystick(document.getElementById('joystick')));
