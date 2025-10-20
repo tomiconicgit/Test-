@@ -18,7 +18,7 @@ renderer.setClearColor(0x87b4ff, 1.0);
 const camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 1000);
 const yaw = new THREE.Object3D(); const pitch = new THREE.Object3D();
 yaw.add(pitch); pitch.add(camera); scene.add(yaw);
-camera.position.set(0,1.6,0);
+camera.position.set(0,0,0);
 
 // Lights
 const hemi = new THREE.HemisphereLight(0xcfe8ff, 0x807060, 0.8);
@@ -37,6 +37,11 @@ const SPEED = 4.0;           // m/s
 const EYE = 1.6;             // eye height over ground
 let actionMode = 'PLACE';    // or 'REMOVE'
 let activeBlock = BLOCK.METAL;
+
+// Highlight box
+const highlightBox = new THREE.BoxHelper(new THREE.Object3D(), 0xffffff);
+highlightBox.visible = false;
+scene.add(highlightBox);
 
 // UI wiring
 const js = new Joystick(document.getElementById('joystick'));
@@ -65,7 +70,7 @@ window.addEventListener('pointerup', e=>{ if(e.pointerId===lookId) lookId=null; 
 // Tap to act (center ray)
 window.addEventListener('pointerup', e=>{
   if(e.clientX < innerWidth*0.5) return; // avoid conflict with joystick
-  const hit = raycastVoxel(yaw.position, getForward(), 6.0);
+  const hit = raycastVoxel(yaw.position, getLookDirection(), 8.0);
   if(!hit) return;
   if(actionMode==='REMOVE'){
     WORLD.setVoxel(hit.pos.x, hit.pos.y, hit.pos.z, BLOCK.AIR, true);
@@ -96,8 +101,18 @@ function tick(){
   // ground height
   const gx=Math.floor(yaw.position.x), gz=Math.floor(yaw.position.z);
   const top = WORLD.topY(gx,gz);
-  const targetY = (top<=WORLD.minY-1 ? 0 : top) + EYE;
+  const targetY = (top<=WORLD.minY-1 ? 0 : top + 1) + EYE;
   yaw.position.y += (targetY - yaw.position.y) * 0.35; // smooth step
+
+  // Update highlight
+  const hit = raycastVoxel(yaw.position, getLookDirection(), 8.0);
+  if (hit) {
+    highlightBox.visible = true;
+    highlightBox.position.set(hit.pos.x + 0.5, hit.pos.y + 0.5, hit.pos.z + 0.5);
+    highlightBox.scale.set(1.01, 1.01, 1.01); // slight oversize for visibility
+  } else {
+    highlightBox.visible = false;
+  }
 
   renderer.render(scene, camera);
 }
@@ -113,6 +128,12 @@ function getForward(){
   f.applyQuaternion(pitch.quaternion).applyQuaternion(yaw.quaternion);
   f.y=0; f.normalize();
   return f;
+}
+function getLookDirection(){
+  const d = new THREE.Vector3(0,0,-1);
+  d.applyQuaternion(pitch.quaternion).applyQuaternion(yaw.quaternion);
+  d.normalize();
+  return d;
 }
 // Fast voxel ray (3D DDA)
 function raycastVoxel(origin, dir, maxDist){
@@ -155,7 +176,7 @@ function raycastVoxel(origin, dir, maxDist){
 }
 
 // Start position middle of map
-yaw.position.set(50.5, EYE, 50.5);
+yaw.position.set(50.5, 2.6, 50.5);
 
 // Resize
 addEventListener('resize', ()=>{
