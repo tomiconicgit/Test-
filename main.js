@@ -1,6 +1,4 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js';
-// CORRECTED: Using BufferGeometryUtils directly for merging
-import * as BufferGeometryUtils from 'https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/utils/BufferGeometryUtils.js';
 import { makeMaterials } from './engine/Materials.js';
 import { VoxelWorld, BLOCK } from './engine/VoxelWorld.js';
 import { Joystick } from './ui/Joystick.js';
@@ -48,61 +46,7 @@ const WORLD = new VoxelWorld(THREE, materials, { scene, sizeX:100, sizeZ:100, mi
 // Player/State
 const SPEED = 4.0;
 const EYE = 1.6;
-let activeItem = 'METAL';
-const props = [];
-const raycaster = new THREE.Raycaster();
-
-// --- REWRITTEN TRUSS GEOMETRY ---
-function createTrussGeometry() {
-    const beamSize = 0.15;
-    const length = 4;
-    const height = 4;
-    const depth = 0.5;
-    const geometries = [];
-
-    // Function to create a beam and add it to the geometries array
-    const addBeam = (sx, sy, sz, px, py, pz, rx = 0, ry = 0, rz = 0) => {
-        const geom = new THREE.BoxGeometry(sx, sy, sz);
-        geom.rotateX(rx);
-        geom.rotateY(ry);
-        geom.rotateZ(rz);
-        geom.translate(px, py, pz);
-        geometries.push(geom);
-    };
-
-    // Create two sides of the truss
-    for (const zOffset of [0, depth - beamSize]) {
-        // Frame
-        addBeam(length, beamSize, beamSize, 0, height - beamSize / 2, zOffset); // Top
-        addBeam(length, beamSize, beamSize, 0, beamSize / 2, zOffset);           // Bottom
-        addBeam(beamSize, height, beamSize, -length / 2 + beamSize / 2, height / 2, zOffset); // Left
-        addBeam(beamSize, height, beamSize, length / 2 - beamSize / 2, height / 2, zOffset);  // Right
-
-        // Bracing
-        const braceLength = Math.hypot(length / 2, height);
-        const braceAngle = Math.atan2(height, length / 2);
-        addBeam(braceLength, beamSize, beamSize, -length / 4, height / 2, zOffset, 0, 0, -braceAngle);
-        addBeam(braceLength, beamSize, beamSize, length / 4, height / 2, zOffset, 0, 0, braceAngle);
-    }
-    
-    // Cross members connecting the two sides
-    for(let i=0; i < 5; i++) {
-        const x = -length / 2 + beamSize / 2 + i * (length / 4);
-        addBeam(beamSize, beamSize, depth, x, height - beamSize / 2, depth / 2 - beamSize / 2);
-        addBeam(beamSize, beamSize, depth, x, beamSize/2, depth / 2 - beamSize / 2);
-    }
-
-    // Merge all geometries into one
-    const finalGeom = BufferGeometryUtils.mergeGeometries(geometries);
-    // Move pivot point to the bottom-center for easy placement
-    finalGeom.translate(0, 0, -depth / 2 + beamSize/2);
-    return finalGeom;
-}
-
-const trussGeometry = createTrussGeometry();
-const trussPreview = new THREE.Mesh(trussGeometry, new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.4 }));
-trussPreview.visible = false;
-scene.add(trussPreview);
+let activeBlock = BLOCK.METAL;
 
 // Block highlight
 const boxGeom = new THREE.BoxGeometry(1, 1, 1);
@@ -115,40 +59,21 @@ let currentHit = null;
 
 // UI wiring
 const js = new Joystick(document.getElementById('joystick'));
-document.getElementById('itemPicker').addEventListener('change', e => { activeItem = e.target.value; });
-
 document.getElementById('btnPlace').addEventListener('click', () => {
   if (!currentHit) return;
-  const item = activeItem;
-  if (item === 'METAL' || item === 'CONCRETE') {
-    const block = (item === 'METAL') ? BLOCK.METAL : BLOCK.CONCRETE;
-    const p = currentHit.prev;
-    if(!inWorldXZ(p.x,p.z) || p.y < WORLD.minY || p.y > WORLD.maxY) return;
-    WORLD.setVoxel(p.x, p.y, p.z, block, true);
-  } else if (item === 'TRUSS' && trussPreview.visible) {
-    const newTruss = new THREE.Mesh(trussGeometry, materials.metal);
-    newTruss.position.copy(trussPreview.position);
-    newTruss.rotation.copy(trussPreview.rotation);
-    newTruss.castShadow = newTruss.receiveShadow = true;
-    newTruss.name = "truss";
-    scene.add(newTruss);
-    props.push(newTruss);
-  }
+  const p = currentHit.prev;
+  if(!inWorldXZ(p.x,p.z) || p.y < WORLD.minY || p.y > WORLD.maxY) return;
+  WORLD.setVoxel(p.x, p.y, p.z, activeBlock, true);
+});
+document.getElementById('btnRemove').addEventListener('click', () => {
+  if (!currentHit) return;
+  WORLD.setVoxel(currentHit.pos.x, currentHit.pos.y, currentHit.pos.z, BLOCK.AIR, true);
+});
+// Reverted to query radio buttons
+document.querySelectorAll('input[name="block"]').forEach(r=>{
+  r.addEventListener('change', e => activeBlock = (e.target.value==='METAL') ? BLOCK.METAL : BLOCK.CONCRETE);
 });
 
-document.getElementById('btnRemove').addEventListener('click', () => {
-  raycaster.setFromCamera({x:0, y:0}, camera);
-  const intersects = raycaster.intersectObjects(props);
-  if (intersects.length > 0) {
-    const obj = intersects[0].object;
-    scene.remove(obj);
-    props.splice(props.indexOf(obj), 1);
-    if(obj.geometry) obj.geometry.dispose();
-  } else {
-    if (!currentHit) return;
-    WORLD.setVoxel(currentHit.pos.x, currentHit.pos.y, currentHit.pos.z, BLOCK.AIR, true);
-  }
-});
 
 // Look (right-half drag)
 let lookId=null, lastX=0, lastY=0;
@@ -187,20 +112,12 @@ function tick(){
 
   currentHit = raycastVoxel(yaw.position, getLookDirection(), 8.0);
   
-  const isBlockActive = activeItem === 'METAL' || activeItem === 'CONCRETE';
-  highlightWireframe.visible = isBlockActive && currentHit;
-  trussPreview.visible = activeItem === 'TRUSS' && currentHit;
+  highlightWireframe.visible = !!currentHit;
 
   if (currentHit) {
-    if(isBlockActive) {
-      highlightWireframe.position.set(currentHit.pos.x + 0.5, currentHit.pos.y + 0.5, currentHit.pos.z + 0.5);
-    } else if (activeItem === 'TRUSS') {
-      const pos = currentHit.prev;
-      trussPreview.position.set(pos.x, pos.y, pos.z);
-      const angle = Math.round(yaw.rotation.y / (Math.PI / 2)) * (Math.PI / 2);
-      trussPreview.rotation.y = angle;
-    }
+    highlightWireframe.position.set(currentHit.pos.x + 0.5, currentHit.pos.y + 0.5, currentHit.pos.z + 0.5);
   }
+  
   renderer.render(scene, camera);
 }
 
