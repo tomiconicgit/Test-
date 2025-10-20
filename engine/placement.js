@@ -16,7 +16,7 @@ export class PlacementController {
         this.currentHit = null;
 
         this.previewMat = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.4, side: THREE.DoubleSide });
-        this.previewMesh = new THREE.Mesh(new THREE.BoxGeometry(), this.previewMat);
+        this.previewMesh = new THREE.Mesh(new THREE.BufferGeometry(), this.previewMat); // <-- FIX IS HERE
         this.previewMesh.visible = false;
         this.scene.add(this.previewMesh);
 
