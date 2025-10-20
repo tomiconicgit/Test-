@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="manifest" href="/manifest.json">
   <link rel="stylesheet" href="./style.css" />
 </head>
 <body>
@@ -27,9 +28,18 @@
     </div>
 
     <div id="crosshair"></div>
-    <div id="hint">Drag right side to look • Left joystick to move</div>
+    <div id="hint">Drag right side to look â¢ Left joystick to move</div>
   </div>
 
   <script type="module" src="./main.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js')
+          .then(reg => console.log('SW registered:', reg))
+          .catch(err => console.log('SW registration failed:', err));
+      });
+    }
+  </script>
 </body>
 </html>
