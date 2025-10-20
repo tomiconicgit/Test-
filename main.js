@@ -42,17 +42,18 @@ const EYE = 1.6;
 let activeItem = 'METAL';
 const props = [];
 const raycaster = new THREE.Raycaster();
+raycaster.far = 8.0; // Set max distance for prop raycasting
 
-// --- PROP GEOMETRIES ---
+// --- PROP GEOMETRIES (Pane is now 1 block wide) ---
 const wallGeo = new THREE.BoxGeometry(1, 1, 0.1); wallGeo.translate(0, 0.5, 0);
-const paneGeo = new THREE.BoxGeometry(0.8, 1, 0.05); paneGeo.translate(0, 0.5, 0);
+const paneGeo = new THREE.BoxGeometry(1, 1, 0.05); paneGeo.translate(0, 0.5, 0); // Corrected width
 const doorGeo = new THREE.BoxGeometry(1, 2, 0.15); doorGeo.translate(0, 1, 0);
 
 const propGeometries = { 'WALL': wallGeo, 'PANE': paneGeo, 'DOOR': doorGeo };
 
 // Ghost preview mesh
 const previewMat = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.4, side: THREE.DoubleSide });
-const previewMesh = new THREE.Mesh(wallGeo, previewMat); // Start with wall geometry
+const previewMesh = new THREE.Mesh(wallGeo, previewMat);
 previewMesh.visible = false;
 scene.add(previewMesh);
 
@@ -85,11 +86,11 @@ document.getElementById('btnPlace').addEventListener('click', () => {
     newProp.position.copy(previewMesh.position);
     newProp.rotation.copy(previewMesh.rotation);
     newProp.castShadow = newProp.receiveShadow = true;
-    newProp.name = item.toLowerCase(); // 'wall', 'pane', 'door'
+    newProp.name = item.toLowerCase();
     
-    if (item === 'DOOR') {
-      newProp.userData.isOpen = false;
-    }
+    // Add user data for interactions and stacking
+    newProp.userData.height = (item === 'DOOR') ? 2 : 1;
+    if (item === 'DOOR') newProp.userData.isOpen = false;
 
     scene.add(newProp);
     props.push(newProp);
@@ -103,10 +104,11 @@ document.getElementById('btnUse').addEventListener('click', () => {
         const obj = intersects[0].object;
         if (obj.name === 'door') {
             obj.userData.isOpen = !obj.userData.isOpen;
-            // Animate door
-            const targetAngle = obj.userData.isOpen ? Math.PI / 2 : 0;
-            // Simple instant rotation for now
-            obj.rotation.y += targetAngle - (obj.rotation.y % (Math.PI*2));
+            // Simple animation: rotate door around its edge
+            const hingeOffset = 0.5 - (0.15/2); // Half width - half thickness
+            const currentRotation = obj.rotation.y;
+            const targetRotation = obj.userData.isOpen ? (currentRotation - Math.PI / 2) : (currentRotation + Math.PI / 2);
+            obj.rotation.y = targetRotation;
         }
     }
 });
@@ -120,7 +122,7 @@ document.getElementById('btnRemove').addEventListener('click', () => {
     props.splice(props.indexOf(obj), 1);
     if(obj.geometry) obj.geometry.dispose();
   } else {
-    if (!currentHit) return;
+    if (!currentHit || !currentHit.isVoxel) return;
     WORLD.setVoxel(currentHit.pos.x, currentHit.pos.y, currentHit.pos.z, BLOCK.AIR, true);
   }
 });
@@ -156,29 +158,55 @@ function tick(){
   const targetY = (top<WORLD.minY ? 0 : top + 1) + EYE;
   yaw.position.y += (targetY - yaw.position.y) * 0.35;
 
-  currentHit = raycastVoxel(yaw.position, getLookDirection(), 8.0);
+  // --- NEW RAYCASTING LOGIC FOR STACKING ---
+  currentHit = null;
+  const voxelHit = raycastVoxel(yaw.position, getLookDirection(), 8.0);
   
+  raycaster.setFromCamera({x:0, y:0}, camera);
+  const propIntersects = raycaster.intersectObjects(props, false);
+  const propHit = propIntersects.length > 0 ? propIntersects[0] : null;
+
+  if (propHit && (!voxelHit || propHit.distance < voxelHit.distance)) {
+    // We hit a prop, and it's closer than any voxel
+    const hitNormal = propHit.face.normal.clone().applyQuaternion(propHit.object.quaternion).normalize();
+    if (hitNormal.y > 0.9) { // Hit the top face of the prop
+      const basePos = propHit.object.position;
+      const placePos = new THREE.Vector3(Math.round(basePos.x-0.5), basePos.y, Math.round(basePos.z-0.5));
+      currentHit = {
+          isVoxel: false,
+          pos: placePos,
+          prev: placePos, // For props, pos and prev are the same
+          normal: new THREE.Vector3(0, 1, 0)
+      };
+    }
+  } else if (voxelHit) {
+    // We hit a voxel
+    currentHit = voxelHit;
+    currentHit.isVoxel = true;
+  }
+  
+  // Update placement previews
   const isBlockActive = activeItem === 'METAL' || activeItem === 'CONCRETE';
-  highlightWireframe.visible = isBlockActive && currentHit;
+  highlightWireframe.visible = isBlockActive && currentHit && currentHit.isVoxel;
   previewMesh.visible = propGeometries[activeItem] && currentHit;
 
   if (currentHit) {
-    if(isBlockActive) {
-      highlightWireframe.position.set(currentHit.pos.x + 0.5, currentHit.pos.y + 0.5, currentHit.pos.z + 0.5);
+    if (isBlockActive) {
+      if(currentHit.isVoxel){
+        highlightWireframe.position.set(currentHit.pos.x + 0.5, currentHit.pos.y + 0.5, currentHit.pos.z + 0.5);
+      }
     } else if (propGeometries[activeItem]) {
-      previewMesh.geometry = propGeometries[activeItem]; // Update preview shape
+      previewMesh.geometry = propGeometries[activeItem];
       const pos = currentHit.prev;
       const normal = currentHit.normal;
       
       previewMesh.position.set(pos.x + 0.5, pos.y, pos.z + 0.5);
       
-      // Orient based on which face is being looked at
-      if (Math.abs(normal.x) > 0.5) { // Left or Right face
+      if (Math.abs(normal.x) > 0.5) {
         previewMesh.rotation.y = Math.PI / 2;
-      } else if (Math.abs(normal.z) > 0.5) { // Front or Back face
+      } else if (Math.abs(normal.z) > 0.5) {
         previewMesh.rotation.y = 0;
-      } else { // Top or Bottom face
-         // Align with player direction
+      } else {
         previewMesh.rotation.y = Math.round(yaw.rotation.y / (Math.PI / 2)) * (Math.PI / 2);
       }
     }
@@ -192,7 +220,7 @@ function inWorldXZ(x,z){ return x>=0 && z>=0 && x<100 && z<100; }
 function getForward(){ const f=new THREE.Vector3(0,0,-1); f.applyQuaternion(pitch.quaternion).applyQuaternion(yaw.quaternion); f.y=0; f.normalize(); return f; }
 function getLookDirection(){ const d=new THREE.Vector3(0,0,-1); d.applyQuaternion(pitch.quaternion).applyQuaternion(yaw.quaternion); d.normalize(); return d; }
 
-// Enhanced RaycastVoxel to return hit normal
+// Enhanced RaycastVoxel to return hit normal and distance
 function raycastVoxel(origin, dir, maxDist){
   const pos = new THREE.Vector3().copy(origin);
   const step = new THREE.Vector3(Math.sign(dir.x)||1, Math.sign(dir.y)||1, Math.sign(dir.z)||1);
@@ -210,7 +238,7 @@ function raycastVoxel(origin, dir, maxDist){
       const id = WORLD.getVoxel(voxel.x, voxel.y, voxel.z);
       if(id!==BLOCK.AIR){
         const normal = lastVoxel.clone().sub(voxel);
-        return { pos: voxel.clone(), prev: lastVoxel.clone(), id, normal };
+        return { pos: voxel.clone(), prev: lastVoxel.clone(), id, normal, distance: dist };
       }
     }
     lastVoxel.copy(voxel);
