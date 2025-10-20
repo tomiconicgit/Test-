@@ -16,7 +16,7 @@ export class PlacementController {
         this.currentHit = null;
 
         this.previewMat = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.4, side: THREE.DoubleSide });
-        this.previewMesh = new THREE.Mesh(new THREE.BufferGeometry(), this.previewMat); // <-- FIX IS HERE
+        this.previewMesh = new THREE.Mesh(new THREE.BufferGeometry(), this.previewMat);
         this.previewMesh.visible = false;
         this.scene.add(this.previewMesh);
 
@@ -76,7 +76,7 @@ export class PlacementController {
 
     _handleVoxelMode(voxelHit, player, activeItem) {
         this.currentHit = { ...voxelHit, isVoxel: true };
-        const isBlock = activeItem === 'BLOCK';
+        const isBlock = activeItem === 'VOXEL'; // <-- FIX IS HERE
         const isProp = this.propGeometries[activeItem];
         if (isBlock) {
             this.voxelHighlight.position.set(this.currentHit.pos.x + 0.5, this.currentHit.pos.y + 0.5, this.currentHit.pos.z + 0.5);
@@ -93,7 +93,7 @@ export class PlacementController {
         if (!this.currentHit && !this.isSnapping) return;
         if (this.isSnapping && this.previewMesh.visible) { this._placeProp(world, activeItem); this.isSnapping = false; this.snapTarget = null; return; }
         if (this.currentHit) {
-            if (activeItem === 'BLOCK') { world.setVoxel(this.currentHit.prev.x, this.currentHit.prev.y, this.currentHit.prev.z, BLOCK.METAL, true); }
+            if (activeItem === 'VOXEL') { world.setVoxel(this.currentHit.prev.x, this.currentHit.prev.y, this.currentHit.prev.z, BLOCK.METAL, true); } // <-- FIX IS HERE
             else if (this.propGeometries[activeItem] && this.previewMesh.visible) { this._placeProp(world, activeItem); }
         }
     }
