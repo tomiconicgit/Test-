@@ -21,9 +21,9 @@ yaw.add(pitch); pitch.add(camera); scene.add(yaw);
 camera.position.set(0,0,0);
 
 // Lights
-const hemi = new THREE.HemisphereLight(0xcfe8ff, 0xa09070, 1.0);
+const hemi = new THREE.HemisphereLight(0xcfe8ff, 0xb0a080, 2.0); // Increased intensity & brighter ground
 scene.add(hemi);
-const sun = new THREE.DirectionalLight(0xffffff, 0.9);
+const sun = new THREE.DirectionalLight(0xffffff, 1.5); // Increased intensity
 sun.position.set(60,120,30);
 sun.castShadow = true;
 sun.shadow.mapSize.set(1024,1024);
@@ -37,12 +37,19 @@ const SPEED = 4.0;           // m/s
 const EYE = 1.6;             // eye height over ground
 let activeBlock = BLOCK.METAL;
 
-// Highlight box
-const highlightBox = new THREE.BoxHelper(new THREE.Object3D(), 0x88ff88);
-highlightBox.visible = false;
-highlightBox.material.transparent = true;
-highlightBox.material.opacity = 0.6;
-scene.add(highlightBox);
+// Wireframe highlight for targeted block
+const boxGeom = new THREE.BoxGeometry(1, 1, 1);
+const edges = new THREE.EdgesGeometry(boxGeom);
+const lineMat = new THREE.LineBasicMaterial({
+  color: 0xffffff,
+  linewidth: 2,
+  transparent: true,
+  opacity: 0.9,
+});
+const highlightWireframe = new THREE.LineSegments(edges, lineMat);
+highlightWireframe.visible = false;
+scene.add(highlightWireframe);
+
 
 // Current hit for actions
 let currentHit = null;
@@ -105,11 +112,11 @@ function tick(){
   // Update highlight and currentHit
   currentHit = raycastVoxel(yaw.position, getLookDirection(), 8.0);
   if (currentHit) {
-    highlightBox.visible = true;
-    highlightBox.position.set(currentHit.pos.x + 0.5, currentHit.pos.y + 0.5, currentHit.pos.z + 0.5);
-    highlightBox.scale.set(1.01, 1.01, 1.01); // slight oversize for visibility
+    highlightWireframe.visible = true;
+    highlightWireframe.position.set(currentHit.pos.x + 0.5, currentHit.pos.y + 0.5, currentHit.pos.z + 0.5);
+    highlightWireframe.scale.set(1.002, 1.002, 1.002); // slight oversize to prevent z-fighting
   } else {
-    highlightBox.visible = false;
+    highlightWireframe.visible = false;
   }
 
   renderer.render(scene, camera);
