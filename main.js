@@ -37,10 +37,12 @@ const materials = await makeMaterials();
 const WORLD = new VoxelWorld(THREE, materials, { scene, sizeX:100, sizeZ:100, minY:-30, maxY:500 });
 
 // Player/State
-const SPEED = 5.0; // Slightly increased speed
+const SPEED = 5.0;
 const EYE = 1.6;
 let activeItem = 'METAL';
 let isFlying = false;
+let isSnapping = false; // NEW state for snap mode
+let snapTarget = null;   // NEW object to snap onto
 const props = [];
 const raycaster = new THREE.Raycaster();
 raycaster.far = 8.0;
@@ -51,65 +53,73 @@ const paneGeo = new THREE.BoxGeometry(1, 1, 0.05); paneGeo.translate(0, 0.5, 0);
 const doorGeo = new THREE.BoxGeometry(1, 2, 0.15); doorGeo.translate(0, 1, 0);
 const propGeometries = { 'WALL': wallGeo, 'PANE': paneGeo, 'DOOR': doorGeo };
 
-// Preview Meshes
+// Previews & Highlights
 const previewMat = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.4, side: THREE.DoubleSide });
 const previewMesh = new THREE.Mesh(wallGeo, previewMat);
 previewMesh.visible = false;
 scene.add(previewMesh);
 
-const boxGeom = new THREE.BoxGeometry(1.001, 1.001, 1.001);
-const edges = new THREE.EdgesGeometry(boxGeom);
+const voxelHighlightGeom = new THREE.BoxGeometry(1.001, 1.001, 1.001);
+const voxelEdges = new THREE.EdgesGeometry(voxelHighlightGeom);
 const lineMat = new THREE.LineBasicMaterial({ color: 0xffffff, linewidth: 3 });
-const highlightWireframe = new THREE.LineSegments(edges, lineMat);
-scene.add(highlightWireframe);
+const voxelHighlight = new THREE.LineSegments(voxelEdges, lineMat);
+scene.add(voxelHighlight);
+
+const propHighlight = new THREE.BoxHelper(new THREE.Object3D(), 0xffffff); // NEW wireframe for props
+propHighlight.visible = false;
+scene.add(propHighlight);
 
 let currentHit = null;
 
-// --- GAMEPAD STATE ---
+// Gamepad State
 let gamepad = null;
-let r2Pressed = false, l2Pressed = false, aPressed = false;
+let r2Pressed = false, l2Pressed = false, aPressed = false, r1Pressed = false;
 let lastAPressTime = 0;
-window.addEventListener('gamepadconnected', (e) => {
-    console.log('Gamepad connected:', e.gamepad.id);
-    gamepad = e.gamepad;
-});
-window.addEventListener('gamepaddisconnected', () => {
-    console.log('Gamepad disconnected.');
-    gamepad = null;
-});
+window.addEventListener('gamepadconnected', (e) => { gamepad = e.gamepad; });
+window.addEventListener('gamepaddisconnected', () => { gamepad = null; });
 
-// --- UI WIRING ---
+// UI Wiring
 const js = new Joystick(document.getElementById('joystick'));
 document.getElementById('itemPicker').addEventListener('change', e => { activeItem = e.target.value; });
-const btnPlace = document.getElementById('btnPlace');
-const btnRemove = document.getElementById('btnRemove');
-const btnUse = document.getElementById('btnUse');
-
-btnPlace.addEventListener('click', () => { if (currentHit) placeAction(); });
-btnRemove.addEventListener('click', removeAction);
-btnUse.addEventListener('click', useAction);
 
 function placeAction() {
-    const item = activeItem;
-    if (item === 'METAL' || item === 'CONCRETE') {
-        const block = (item === 'METAL') ? BLOCK.METAL : BLOCK.CONCRETE;
-        const p = currentHit.prev;
-        if (!inWorldXZ(p.x, p.z) || p.y < WORLD.minY || p.y > WORLD.maxY) return;
-        WORLD.setVoxel(p.x, p.y, p.z, block, true);
-    } else if (propGeometries[item] && previewMesh.visible) {
-        let material = materials.metal;
-        if (item === 'PANE') material = materials.glass;
+    if (!currentHit && !isSnapping) return;
 
-        const newProp = new THREE.Mesh(propGeometries[item], material);
-        newProp.position.copy(previewMesh.position);
-        newProp.rotation.copy(previewMesh.rotation);
-        newProp.castShadow = newProp.receiveShadow = true;
-        newProp.name = item.toLowerCase();
-        newProp.userData.height = (item === 'DOOR') ? 2 : 1;
-        if (item === 'DOOR') newProp.userData.isOpen = false;
-        scene.add(newProp);
-        props.push(newProp);
+    // Handle snapping placement
+    if (isSnapping && previewMesh.visible) {
+        placeProp();
+        isSnapping = false; // Exit snap mode after placing
+        snapTarget = null;
+        return;
     }
+    
+    // Handle regular placement
+    if (currentHit) {
+        const item = activeItem;
+        if (item === 'METAL' || item === 'CONCRETE') {
+            const block = (item === 'METAL') ? BLOCK.METAL : BLOCK.CONCRETE;
+            const p = currentHit.prev;
+            if (!inWorldXZ(p.x, p.z) || p.y < WORLD.minY || p.y > WORLD.maxY) return;
+            WORLD.setVoxel(p.x, p.y, p.z, block, true);
+        } else if (propGeometries[item] && previewMesh.visible) {
+            placeProp();
+        }
+    }
+}
+
+function placeProp() {
+    let material = materials.metal;
+    if (activeItem === 'PANE') material = materials.glass;
+
+    const newProp = new THREE.Mesh(propGeometries[activeItem], material);
+    newProp.position.copy(previewMesh.position);
+    newProp.rotation.copy(previewMesh.rotation);
+    newProp.castShadow = newProp.receiveShadow = true;
+    newProp.name = activeItem.toLowerCase();
+    newProp.userData.height = (activeItem === 'DOOR') ? 2 : 1;
+    if (activeItem === 'DOOR') newProp.userData.isOpen = false;
+    scene.add(newProp);
+    props.push(newProp);
 }
 
 function removeAction() {
@@ -117,6 +127,10 @@ function removeAction() {
     const intersects = raycaster.intersectObjects(props);
     if (intersects.length > 0) {
         const obj = intersects[0].object;
+        if(snapTarget === obj) { // If removing the snap target, exit snap mode
+            isSnapping = false;
+            snapTarget = null;
+        }
         scene.remove(obj);
         props.splice(props.indexOf(obj), 1);
         if (obj.geometry) obj.geometry.dispose();
@@ -125,32 +139,8 @@ function removeAction() {
         WORLD.setVoxel(currentHit.pos.x, currentHit.pos.y, currentHit.pos.z, BLOCK.AIR, true);
     }
 }
-
-function useAction() {
-    raycaster.setFromCamera({ x: 0, y: 0 }, camera);
-    const intersects = raycaster.intersectObjects(props, false);
-    if (intersects.length > 0 && intersects[0].object.name === 'door') {
-        const door = intersects[0].object;
-        door.userData.isOpen = !door.userData.isOpen;
-        // A simple animation could be added here later with a library like Tween.js
-        const hingeOffset = 0.5 - (0.15 / 2);
-        const currentAngle = door.rotation.y;
-        const targetAngle = door.userData.isOpen ? currentAngle - Math.PI / 2 : currentAngle + Math.PI / 2;
-        door.rotation.y = targetAngle;
-    }
-}
-
-// Look (right-half drag)
-let lookId = null, lastX = 0, lastY = 0;
-window.addEventListener('pointerdown', e => { if (e.clientX > innerWidth * 0.5) { lookId = e.pointerId; lastX = e.clientX; lastY = e.clientY; } });
-window.addEventListener('pointermove', e => {
-    if (e.pointerId !== lookId) return;
-    const dx = e.clientX - lastX, dy = e.clientY - lastY; lastX = e.clientX; lastY = e.clientY;
-    const sens = 0.3 * (1 / renderer.getPixelRatio());
-    yaw.rotation.y -= dx * sens * 0.01;
-    pitch.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, pitch.rotation.x - dy * sens * 0.01));
-});
-window.addEventListener('pointerup', e => { if (e.pointerId === lookId) lookId = null; });
+document.getElementById('btnPlace').addEventListener('click', placeAction);
+document.getElementById('btnRemove').addEventListener('click', removeAction);
 
 // --- MAIN LOOP ---
 let lastT = performance.now();
@@ -162,167 +152,122 @@ function tick() {
     const dt = Math.min((t - lastT) / 1000, 0.05);
     lastT = t;
 
-    let forward = -js.axY;
-    let strafe = js.axX;
+    let targetedProp = null; // Track which prop is being aimed at
 
-    // --- GAMEPAD INPUT HANDLING ---
+    // --- GAMEPAD INPUT ---
     if (navigator.getGamepads && navigator.getGamepads()[0]) {
         gamepad = navigator.getGamepads()[0];
-        const deadzone = 0.15;
+        // ... (Movement, Camera, and Flight controls remain the same)
+        const deadzone=0.15;const ax0=gamepad.axes[0];const ax1=gamepad.axes[1];if(Math.abs(ax0)>deadzone||Math.abs(ax1)>deadzone){js.axX=ax0;js.axY=-ax1;}
+        const ax2=gamepad.axes[2];const ax3=gamepad.axes[3];if(Math.abs(ax2)>deadzone)yaw.rotation.y-=ax2*2.5*dt;if(Math.abs(ax3)>deadzone)pitch.rotation.x=Math.max(-Math.PI/2,Math.min(Math.PI/2,pitch.rotation.x-ax3*2.5*dt));
+        if(gamepad.buttons[7].pressed&&!r2Pressed){placeAction();r2Pressed=true;}else if(!gamepad.buttons[7].pressed){r2Pressed=false;}
+        if(gamepad.buttons[6].pressed&&!l2Pressed){removeAction();l2Pressed=true;}else if(!gamepad.buttons[6].pressed){l2Pressed=false;}
+        if(gamepad.buttons[0].pressed&&!aPressed){if(t-lastAPressTime<300){isFlying=!isFlying;}lastAPressTime=t;aPressed=true;}else if(!gamepad.buttons[0].pressed){aPressed=false;}
+        if(isFlying){const flySpeed=SPEED*dt;if(gamepad.buttons[0].pressed)yaw.position.y+=flySpeed;if(gamepad.buttons[2].pressed)yaw.position.y-=flySpeed;}
 
-        // Left stick for movement (overrides virtual joystick if moved)
-        const ax0 = gamepad.axes[0];
-        const ax1 = gamepad.axes[1];
-        if (Math.abs(ax0) > deadzone || Math.abs(ax1) > deadzone) {
-            strafe = ax0;
-            forward = -ax1;
-        }
-
-        // Right stick for camera
-        const ax2 = gamepad.axes[2];
-        const ax3 = gamepad.axes[3];
-        if (Math.abs(ax2) > deadzone) yaw.rotation.y -= ax2 * 2.5 * dt;
-        if (Math.abs(ax3) > deadzone) pitch.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, pitch.rotation.x - ax3 * 2.5 * dt));
-
-        // R2 for Place (Button 7)
-        if (gamepad.buttons[7].pressed && !r2Pressed) {
-            placeAction();
-            r2Pressed = true;
-        } else if (!gamepad.buttons[7].pressed) {
-            r2Pressed = false;
-        }
-
-        // L2 for Remove (Button 6)
-        if (gamepad.buttons[6].pressed && !l2Pressed) {
-            removeAction();
-            l2Pressed = true;
-        } else if (!gamepad.buttons[6].pressed) {
-            l2Pressed = false;
-        }
-
-        // Double Tap A for Flight (Button 0)
-        if (gamepad.buttons[0].pressed && !aPressed) {
-            if (t - lastAPressTime < 300) { // 300ms double tap window
-                isFlying = !isFlying;
+        // R1 to enter/exit Snap Mode (Button 5)
+        if (gamepad.buttons[5].pressed && !r1Pressed) {
+            raycaster.setFromCamera({ x: 0, y: 0 }, camera);
+            const intersects = raycaster.intersectObjects(props);
+            if (intersects.length > 0) {
+                targetedProp = intersects[0].object;
+                if (isSnapping && snapTarget === targetedProp) {
+                    isSnapping = false; // Toggle off
+                    snapTarget = null;
+                } else {
+                    isSnapping = true; // Toggle on
+                    snapTarget = targetedProp;
+                }
             }
-            lastAPressTime = t;
-            aPressed = true;
-        } else if (!gamepad.buttons[0].pressed) {
-            aPressed = false;
-        }
-
-        // Flying controls
-        if (isFlying) {
-            const flySpeed = SPEED * dt;
-            if (gamepad.buttons[0].pressed) yaw.position.y += flySpeed; // A to go up
-            if (gamepad.buttons[2].pressed) yaw.position.y -= flySpeed; // X to go down (button 2 is often X)
+            r1Pressed = true;
+        } else if (!gamepad.buttons[5].pressed) {
+            r1Pressed = false;
         }
     }
-
-    // --- MOVEMENT LOGIC ---
+    
+    // --- MOVEMENT ---
+    const forward = -js.axY; const strafe = js.axX;
     const dir = getForward(isFlying);
     const right = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0, 1, 0)).normalize();
     yaw.position.addScaledVector(dir, forward * SPEED * dt);
     yaw.position.addScaledVector(right, strafe * SPEED * dt);
     clampXZ(yaw.position);
-
     if (!isFlying) {
         const gx = Math.floor(yaw.position.x), gz = Math.floor(yaw.position.z);
         const top = WORLD.topY(gx, gz);
         const targetY = (top < WORLD.minY ? 0 : top + 1) + EYE;
-        yaw.position.y += (targetY - yaw.position.y) * 0.35; // Smoothly follow terrain
+        yaw.position.y += (targetY - yaw.position.y) * 0.35;
     }
     
-    // --- RAYCASTING AND PREVIEWS ---
+    // --- RAYCASTING & PREVIEWS ---
     currentHit = null;
-    const voxelHit = raycastVoxel(yaw.position, getLookDirection(), 8.0);
+    voxelHighlight.visible = false;
+    propHighlight.visible = false;
+    previewMesh.visible = false;
+
     raycaster.setFromCamera({ x: 0, y: 0 }, camera);
     const propIntersects = raycaster.intersectObjects(props, false);
     const propHit = propIntersects.length > 0 ? propIntersects[0] : null;
+    targetedProp = propHit ? propHit.object : null;
 
-    if (propHit && (!voxelHit || propHit.distance < voxelHit.distance)) {
-        const hitNormal = propHit.face.normal.clone().applyQuaternion(propHit.object.quaternion).normalize();
-        if (hitNormal.y > 0.9) {
-            const basePos = propHit.object.position;
-            const placePos = new THREE.Vector3(basePos.x, basePos.y + propHit.object.userData.height, basePos.z);
-            currentHit = { isVoxel: false, pos: placePos, prev: placePos, normal: new THREE.Vector3(0, 1, 0) };
-        }
-    } else if (voxelHit) {
-        currentHit = voxelHit;
-        currentHit.isVoxel = true;
+    // Exit snap mode if we look away from the target
+    if (isSnapping && targetedProp !== snapTarget) {
+        isSnapping = false;
+        snapTarget = null;
     }
 
-    const isBlockActive = activeItem === 'METAL' || activeItem === 'CONCRETE';
-    highlightWireframe.visible = isBlockActive && currentHit && currentHit.isVoxel;
-    previewMesh.visible = propGeometries[activeItem] && currentHit;
+    if (isSnapping && snapTarget) {
+        // --- SNAP MODE LOGIC ---
+        propHighlight.setFromObject(snapTarget);
+        propHighlight.visible = true;
 
-    if (currentHit) {
-        if (isBlockActive) {
-            if (currentHit.isVoxel) highlightWireframe.position.set(currentHit.pos.x + 0.5, currentHit.pos.y + 0.5, currentHit.pos.z + 0.5);
-        } else if (propGeometries[activeItem]) {
-            previewMesh.geometry = propGeometries[activeItem];
-            const pos = currentHit.prev;
-            const normal = currentHit.normal;
-            previewMesh.position.set(pos.x + 0.5, pos.y, pos.z + 0.5);
-            if (Math.abs(normal.x) > 0.5) previewMesh.rotation.y = Math.PI / 2;
-            else if (Math.abs(normal.z) > 0.5) previewMesh.rotation.y = 0;
-            else previewMesh.rotation.y = Math.round(yaw.rotation.y / (Math.PI / 2)) * (Math.PI / 2);
+        previewMesh.geometry = propGeometries[activeItem];
+        // CORRECTED stacking position
+        const newY = snapTarget.position.y + snapTarget.userData.height;
+        previewMesh.position.set(snapTarget.position.x, newY, snapTarget.position.z);
+        previewMesh.rotation.copy(snapTarget.rotation);
+        previewMesh.visible = true;
+
+    } else {
+        // --- REGULAR MODE LOGIC ---
+        const voxelHit = raycastVoxel(yaw.position, getLookDirection(), 8.0);
+        
+        if (propHit && (!voxelHit || propHit.distance < voxelHit.distance)) {
+            propHighlight.setFromObject(propHit.object);
+            propHighlight.visible = true;
+            // Don't set currentHit for props unless we're placing on top, which is handled by snap mode now
+        } else if (voxelHit) {
+            currentHit = voxelHit;
+            currentHit.isVoxel = true;
+            
+            const isBlockActive = activeItem === 'METAL' || activeItem === 'CONCRETE';
+            if (isBlockActive) {
+                voxelHighlight.position.set(currentHit.pos.x + 0.5, currentHit.pos.y + 0.5, currentHit.pos.z + 0.5);
+                voxelHighlight.visible = true;
+            } else if (propGeometries[activeItem]) {
+                previewMesh.geometry = propGeometries[activeItem];
+                const pos = currentHit.prev;
+                const normal = currentHit.normal;
+                previewMesh.position.set(pos.x + 0.5, pos.y, pos.z + 0.5);
+                if (Math.abs(normal.x) > 0.5) previewMesh.rotation.y = Math.PI / 2;
+                else if (Math.abs(normal.z) > 0.5) previewMesh.rotation.y = 0;
+                else previewMesh.rotation.y = Math.round(yaw.rotation.y / (Math.PI / 2)) * (Math.PI / 2);
+                previewMesh.visible = true;
+            }
         }
     }
-
     renderer.render(scene, camera);
 }
 
-// ===== HELPERS =====
-function clampXZ(v) { v.x = Math.max(0.001, Math.min(99.999, v.x)); v.z = Math.max(0.001, Math.min(99.999, v.z)); }
-function inWorldXZ(x, z) { return x >= 0 && z >= 0 && x < 100 && z < 100; }
-function getForward(flying = false) {
-    const f = new THREE.Vector3(0, 0, -1);
-    f.applyQuaternion(pitch.quaternion).applyQuaternion(yaw.quaternion);
-    if (!flying) f.y = 0;
-    f.normalize();
-    return f;
-}
-function getLookDirection() {
-    const d = new THREE.Vector3(0, 0, -1);
-    d.applyQuaternion(pitch.quaternion).applyQuaternion(yaw.quaternion);
-    d.normalize();
-    return d;
-}
-function raycastVoxel(origin, dir, maxDist) {
-    const pos = new THREE.Vector3().copy(origin);
-    const step = new THREE.Vector3(Math.sign(dir.x) || 1, Math.sign(dir.y) || 1, Math.sign(dir.z) || 1);
-    const tDelta = new THREE.Vector3(Math.abs(1 / dir.x) || 1e9, Math.abs(1 / dir.y) || 1e9, Math.abs(1 / dir.z) || 1e9);
-    let voxel = new THREE.Vector3(Math.floor(pos.x), Math.floor(pos.y), Math.floor(pos.z));
-    const bound = new THREE.Vector3(voxel.x + (step.x > 0 ? 1 : 0), voxel.y + (step.y > 0 ? 1 : 0), voxel.z + (step.z > 0 ? 1 : 0));
-    const tMax = new THREE.Vector3(
-        dir.x !== 0 ? (bound.x - pos.x) / dir.x : 1e9,
-        dir.y !== 0 ? (bound.y - pos.y) / dir.y : 1e9,
-        dir.z !== 0 ? (bound.z - pos.z) / dir.z : 1e9
-    );
-    let dist = 0; let lastVoxel = voxel.clone();
-    for (let i = 0; i < 256; i++) {
-        if (inWorldXZ(voxel.x, voxel.z)) {
-            const id = WORLD.getVoxel(voxel.x, voxel.y, voxel.z);
-            if (id !== BLOCK.AIR) {
-                const normal = lastVoxel.clone().sub(voxel);
-                return { pos: voxel.clone(), prev: lastVoxel.clone(), id, normal, distance: dist };
-            }
-        }
-        lastVoxel.copy(voxel);
-        if (tMax.x < tMax.y) {
-            if (tMax.x < tMax.z) { voxel.x += step.x; dist = tMax.x; tMax.x += tDelta.x; }
-            else { voxel.z += step.z; dist = tMax.z; tMax.z += tDelta.z; }
-        } else {
-            if (tMax.y < tMax.z) { voxel.y += step.y; dist = tMax.y; tMax.y += tDelta.y; }
-            else { voxel.z += step.z; dist = tMax.z; tMax.z += tDelta.z; }
-        }
-        if (dist > maxDist) break;
-    }
-    return null;
-}
+// ... (Helpers: clampXZ, inWorldXZ, getForward, getLookDirection, raycastVoxel remain the same)
+function clampXZ(v){v.x=Math.max(0.001,Math.min(99.999,v.x));v.z=Math.max(0.001,Math.min(99.999,v.z));}
+function inWorldXZ(x,z){return x>=0&&z>=0&&x<100&&z<100;}
+function getForward(flying=false){const f=new THREE.Vector3(0,0,-1);f.applyQuaternion(pitch.quaternion).applyQuaternion(yaw.quaternion);if(!flying)f.y=0;f.normalize();return f;}
+function getLookDirection(){const d=new THREE.Vector3(0,0,-1);d.applyQuaternion(pitch.quaternion).applyQuaternion(yaw.quaternion);d.normalize();return d;}
+function raycastVoxel(origin,dir,maxDist){const pos=new THREE.Vector3().copy(origin);const step=new THREE.Vector3(Math.sign(dir.x)||1,Math.sign(dir.y)||1,Math.sign(dir.z)||1);const tDelta=new THREE.Vector3(Math.abs(1/dir.x)||1e9,Math.abs(1/dir.y)||1e9,Math.abs(1/dir.z)||1e9);let voxel=new THREE.Vector3(Math.floor(pos.x),Math.floor(pos.y),Math.floor(pos.z));const bound=new THREE.Vector3(voxel.x+(step.x>0?1:0),voxel.y+(step.y>0?1:0),voxel.z+(step.z>0?1:0));const tMax=new THREE.Vector3(dir.x!==0?(bound.x-pos.x)/dir.x:1e9,dir.y!==0?(bound.y-pos.y)/dir.y:1e9,dir.z!==0?(bound.z-pos.z)/dir.z:1e9);let dist=0;let lastVoxel=voxel.clone();for(let i=0;i<256;i++){if(inWorldXZ(voxel.x,voxel.z)){const id=WORLD.getVoxel(voxel.x,voxel.y,voxel.z);if(id!==BLOCK.AIR){const normal=lastVoxel.clone().sub(voxel);return{pos:voxel.clone(),prev:lastVoxel.clone(),id,normal,distance:dist};}}
+lastVoxel.copy(voxel);if(tMax.x<tMax.y){if(tMax.x<tMax.z){voxel.x+=step.x;dist=tMax.x;tMax.x+=tDelta.x;}else{voxel.z+=step.z;dist=tMax.z;tMax.z+=tDelta.z;}}else{if(tMax.y<tMax.z){voxel.y+=step.y;dist=tMax.y;tMax.y+=tDelta.y;}else{voxel.z+=step.z;dist=tMax.z;tMax.z+=tDelta.z;}}
+if(dist>maxDist)break;}
+return null;}
 
 yaw.position.set(50.5, 2.6, 50.5);
-addEventListener('resize', () => {
-    renderer.setSize(innerWidth, innerHeight); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
-});
+addEventListener('resize', ()=>{ renderer.setSize(innerWidth, innerHeight); camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); });
