@@ -1,75 +1,35 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
+  <title>Builder PWA</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-  <title>Voxel Game</title>
-
-  <link rel="manifest" href="manifest.json" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="Voxel Game" />
-
-  <style>
-    :root{
-      --ui-element-bg: rgba(255,255,255,.25);
-      --ui-element-size: 64px;
-      --ui-joystick-base-size: 130px;
-      --ui-joystick-knob-size: 65px;
-    }
-    body{margin:0;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Ubuntu;background:#000;
-      -webkit-touch-callout:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;touch-action:manipulation;}
-    canvas{display:block}
-    #crosshair{position:absolute;top:50%;left:50%;width:4px;height:4px;background:#fff;border-radius:50%;
-      transform:translate(-50%,-50%);border:1px solid rgba(0,0,0,.5);pointer-events:none}
-    #ui-container{position:absolute;inset:0;pointer-events:none;display:flex;justify-content:space-between;align-items:flex-end;padding:20px;box-sizing:border-box}
-    #joystick-container,#action-buttons-container{pointer-events:all;display:flex;align-items:flex-end;gap:15px}
-    #action-buttons-group{display:flex;flex-direction:column;gap:15px}
-    #block-select-container{position:absolute;top:20px;right:20px;pointer-events:all}
-    #joystick{position:relative;width:var(--ui-joystick-base-size);height:var(--ui-joystick-base-size);border-radius:50%;
-      background:linear-gradient(145deg,rgba(255,255,255,.1),rgba(0,0,0,.2));box-shadow:inset 0 3px 6px rgba(0,0,0,.4),0 2px 4px rgba(0,0,0,.3);touch-action:none;}
-    #knob{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:var(--ui-joystick-knob-size);height:var(--ui-joystick-knob-size);
-      background:radial-gradient(circle at 30% 30%,rgba(255,255,255,.4),rgba(255,255,255,.1));border-radius:50%;
-      box-shadow:0 5px 15px rgba(0,0,0,.3),inset 0 2px 2px rgba(255,255,255,.2);transition:transform .1s ease-out;}
-    .action-button{width:var(--ui-element-size);height:var(--ui-element-size);background:var(--ui-element-bg);color:#fff;border:1px solid rgba(255,255,255,.3);
-      border-radius:20px;display:flex;justify-content:center;align-items:center;user-select:none;backdrop-filter:blur(8px);box-shadow:0 4px 8px rgba(0,0,0,.2)}
-    .action-button:active{transform:scale(.95);background:rgba(255,255,255,.4)}
-    .action-button svg{width:50%;height:50%;stroke:#fff;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;fill:none}
-    #jump-button{width:80px;height:80px}
-    #block-select{padding:10px;background:var(--ui-element-bg);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:8px;backdrop-filter:blur(8px)}
-  </style>
+  <link rel="stylesheet" href="./style.css" />
 </head>
 <body>
-  <div id="crosshair"></div>
-  <div id="ui-container">
-    <div id="joystick-container"><div id="joystick"><div id="knob"></div></div></div>
-    <div id="block-select-container">
-      <select id="block-select">
-        <option value="1">Concrete</option>
-        <option value="2" selected>Metal</option>
-      </select>
-    </div>
-    <div id="action-buttons-container">
-      <div id="action-buttons-group">
-        <button id="dig-button" class="action-button">
-          <svg viewBox="0 0 24 24"><path d="M12.33 21.37l-3.71-3.71m-8.36-8.36l3.71 3.71M12 4L4 12l8 8 8-8-8-8z"></path><path d="M17.71 10.29l-1.42-1.42a2 2 0 00-2.82 0l-3.18 3.18 4.24 4.24 3.18-3.18a2 2 0 000-2.82z"></path></svg>
-        </button>
-        <button id="place-button" class="action-button">
-          <svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
-        </button>
+  <canvas id="c"></canvas>
+
+  <!-- HUD -->
+  <div id="hud">
+    <div id="joystick"></div>
+
+    <div id="rightPanel">
+      <div id="blockPicker">
+        <label><input type="radio" name="block" value="METAL" checked> Metal</label>
+        <label><input type="radio" name="block" value="CONCRETE"> Concrete</label>
       </div>
-      <button id="jump-button" class="action-button">
-        <svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
-      </button>
+      <div id="actionButtons">
+        <button id="btnPlace">Place</button>
+        <button id="btnRemove">Remove</button>
+      </div>
     </div>
+
+    <div id="crosshair"></div>
+    <div id="hint">Drag right side to look • Left joystick to move</div>
   </div>
 
-  <script type="module" src="main.js?v=bright2"></script>
-  <script>
-    if ('serviceWorker' in navigator) {
-      addEventListener('load', () => navigator.serviceWorker.register('./sw.js?v=4').catch(console.warn));
-    }
-    if (screen.orientation?.lock) screen.orientation.lock('landscape').catch(()=>{});
-  </script>
+  <script type="module" src="./main.js"></script>
 </body>
 </html>
