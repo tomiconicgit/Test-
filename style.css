@@ -36,23 +36,41 @@ html,body { margin:0; height:100%; background:#000; color:var(--fg); font-family
   pointer-events:auto;
 }
 
-/* Reverted to original block picker styles */
-#blockPicker { 
-  display:flex; 
-  gap:10px; 
-  padding:12px 14px;
-  background:var(--glass); 
-  border:1px solid rgba(255,255,255,.08); 
-  border-radius:16px;
+/* Dropdown Styles */
+.select-wrapper {
+  position: relative;
+  background: var(--glass);
+  border: 1px solid rgba(255, 255, 255, .08);
+  border-radius: 16px;
   backdrop-filter: blur(5px);
 }
-#blockPicker label { font-size:14px; display:flex; align-items:center; gap:6px; }
+#itemPicker {
+  width: 100%;
+  padding: 14px;
+  background: transparent;
+  border: none;
+  color: var(--fg);
+  font-size: 14px;
+  font-weight: 600;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+}
+.select-wrapper::after {
+  content: '▼';
+  font-size: 12px;
+  color: rgba(255,255,255,0.5);
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
 
-
-#actionButtons { display:flex; gap:12px; }
+#actionButtons { display:flex; gap:8px; }
 #actionButtons button {
   flex:1; 
-  padding: 20px 14px;
+  padding: 20px 10px;
   border-radius:16px;
   border:1px solid rgba(255,255,255,.2);
   background: rgba(20,22,25,.5);
@@ -68,6 +86,7 @@ html,body { margin:0; height:100%; background:#000; color:var(--fg); font-family
 }
 
 #btnPlace { border-color:rgba(77,163,255,.35); }
+#btnUse { border-color:rgba(255, 215, 0, .35); }
 #btnRemove { border-color:rgba(255,100,100,.35); }
 
 @media (orientation:portrait) {
