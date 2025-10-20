@@ -16,12 +16,10 @@ import { createGlassPaneGeometry } from './engine/structures/glass.js';
 import { createSlopeGeometry } from './engine/structures/slope.js';
 import { createCylinderGeometry } from './engine/structures/cylinder.js';
 // --- MODIFICATION HERE ---
-// Import the 4 new pipe functions
+// Import the 2 new simple pipe functions
 import { 
     createPipeStraightGeometry, 
-    createPipeElbowGeometry, 
-    createPipeTeeGeometry, 
-    createPipeCrossGeometry 
+    createPipeElbowGeometry
 } from './engine/structures/pipe.js';
 // --- END MODIFICATION ---
 
@@ -65,8 +63,6 @@ const propGeometries = {
     'CYLINDER': createCylinderGeometry(),
     'PIPE_STRAIGHT': createPipeStraightGeometry(),
     'PIPE_ELBOW': createPipeElbowGeometry(),
-    'PIPE_TEE': createPipeTeeGeometry(),
-    'PIPE_CROSS': createPipeCrossGeometry(),
 };
 // --- END MODIFICATION ---
 
