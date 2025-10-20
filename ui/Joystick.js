@@ -4,9 +4,9 @@ export class Joystick {
     this.root = rootEl;
     this.center = { x: 70, y: 70 };
     this.knob = document.createElement('div');
-    Object.assign(this.root.style, { position:'relative', borderRadius:'50%', background:'rgba(255,255,255,.04)', border:'1px solid rgba(255,255,255,.08)' });
+    Object.assign(this.root.style, { position:'relative', borderRadius:'50%', background:'rgba(0,0,0,.3)', border:'1px solid rgba(255,255,255,.15)' });
     Object.assign(this.knob.style, { position:'absolute', width:'56px', height:'56px', borderRadius:'50%', left:'42px', top:'42px',
-      background:'rgba(255,255,255,.12)', border:'1px solid rgba(255,255,255,.22)' });
+      background:'rgba(0,0,0,.6)', border:'1px solid rgba(255,255,255,.3)' });
     this.root.appendChild(this.knob);
 
     this.pointerId = null;
