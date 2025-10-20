@@ -2,7 +2,7 @@
 
 // --- CONFIGURATION ---
 // Increment this version every time you push updates
-const CACHE_VERSION = 'v1.0.2'; // <-- MODIFICATION: Incremented version
+const CACHE_VERSION = 'v1.0.3'; // <-- MODIFICATION: Incremented version
 const CACHE_NAME = `builder-pwa-${CACHE_VERSION}`;
 
 // List of all the files that make up the "app shell"
@@ -30,18 +30,19 @@ const APP_SHELL_URLS = [
   './engine/structures/glass.js',
   './engine/structures/slope.js',
   './engine/structures/wall.js',
-  './engine/structures/pipe.js', // <-- Caches your NEW pipe.js
+  './engine/structures/pipe.js', // <-- Caches your NEW flanged pipe.js
 
   // Assets
   './assets/metal_albedo.png',
   './assets/metal_ao.png',
-  './assets/metal_height.png', // <-- Corrected typo from your file list
+  './assets.metal_height.png',
   './assets/metal_metallic.png',
   './assets/metal_normal.png',
 
   // External assets
-  'https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js'
-  // <-- MODIFICATION: REMOVED the BufferGeometryUtils.module.js line
+  'https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js',
+  // <-- MODIFICATION: RE-ADDED the BufferGeometryUtils. This is the fix.
+  'https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/utils/BufferGeometryUtils.module.js'
 ];
 
 // --- SERVICE WORKER LOGIC ---
@@ -64,7 +65,7 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames
-          // This deletes old caches (like v1.0.1)
+          // This deletes old caches (like v1.0.2)
           .filter(name => name.startsWith('builder-pwa-') && name !== CACHE_NAME)
           .map(name => caches.delete(name))
       );
