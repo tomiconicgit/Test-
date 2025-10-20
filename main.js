@@ -39,7 +39,7 @@ const WORLD = new VoxelWorld(THREE, materials, { scene, sizeX:100, sizeZ:100, mi
 // Player/State
 const SPEED = 5.0;
 const EYE = 1.6;
-let activeItem = 'METAL';
+let activeItem = 'BLOCK';
 let isFlying = false;
 let isSnapping = false;
 let snapTarget = null;
@@ -48,52 +48,33 @@ const raycaster = new THREE.Raycaster();
 raycaster.far = 8.0;
 
 // --- PROP GEOMETRIES ---
-function createCurvedEdgeGeometry() {
+function createSlopeGeometry() {
     const shape = new THREE.Shape();
     shape.moveTo(0, 0);
-    shape.absarc(0, 0, 1, Math.PI * 1.5, Math.PI * 2, false);
     shape.lineTo(1, 0);
+    shape.lineTo(0, 1);
     const extrudeSettings = { depth: 1, bevelEnabled: false };
     const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
-    geometry.translate(-1, 0, 0); // Center pivot for rotation
-    return geometry;
-}
-
-function createDiagonalGeometry() {
-    const vertices = new Float32Array([
-        -0.5, -0.5, -0.5, // 0
-         0.5, -0.5, -0.5, // 1
-         0.5, -0.5,  0.5, // 2
-        -0.5, -0.5,  0.5, // 3
-        -0.5,  0.5, -0.5, // 4
-         0.5,  0.5, -0.5, // 5
-    ]);
-    const indices = [ 0, 3, 2,  0, 2, 1,  0, 1, 5,  0, 5, 4,  1, 2, 5,  4, 5, 2,  4, 2, 3,  0, 4, 3 ];
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
-    geometry.setIndex(indices);
-    geometry.computeVertexNormals();
+    geometry.translate(-0.5, -0.5, -0.5); // Center and pivot
     geometry.translate(0, 0.5, 0); // Set pivot to bottom
     return geometry;
 }
 
 const wallGeo = new THREE.BoxGeometry(1, 1, 0.1); wallGeo.translate(0, 0.5, 0);
 const paneGeo = new THREE.BoxGeometry(1, 1, 0.05); paneGeo.translate(0, 0.5, 0);
-const doorGeo = new THREE.BoxGeometry(1, 2, 0.15); doorGeo.translate(0, 1, 0);
-const topSurfaceGeo = new THREE.BoxGeometry(1, 0.1, 1); topSurfaceGeo.translate(0, 0.05, 0);
-const sideSurfaceGeo = new THREE.BoxGeometry(1, 1, 0.1); sideSurfaceGeo.translate(0, 0.5, -0.45);
-const curvedEdgeGeo = createCurvedEdgeGeometry();
-const diagonalGeo = createDiagonalGeometry();
+const floorGeo = new THREE.BoxGeometry(1, 0.1, 1); floorGeo.translate(0, 0.05, 0);
+const slopeGeo = createSlopeGeometry();
 
 const propGeometries = {
-    'WALL': wallGeo, 'PANE': paneGeo, 'DOOR': doorGeo,
-    'CURVED_EDGE': curvedEdgeGeo, 'DIAGONAL': diagonalGeo,
-    'SURFACE_TOP': topSurfaceGeo, 'SURFACE_SIDE': sideSurfaceGeo,
+    'WALL': wallGeo, 
+    'PANE': paneGeo, 
+    'FLOOR': floorGeo,
+    'SLOPE': slopeGeo
 };
 
 // Previews & Highlights
 const previewMat = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.4, side: THREE.DoubleSide });
-const previewMesh = new THREE.Mesh(wallGeo, previewMat);
+const previewMesh = new THREE.Mesh(new THREE.BoxGeometry(), previewMat); // Start with generic geometry
 previewMesh.visible = false;
 scene.add(previewMesh);
 const voxelHighlight = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1.001, 1.001, 1.001)), new THREE.LineBasicMaterial({ color: 0xffffff, linewidth: 3 }));
@@ -104,7 +85,7 @@ scene.add(propHighlight);
 
 let currentHit = null;
 
-// Gamepad State and UI wiring (omitted for brevity, remains unchanged)
+// Gamepad State and UI wiring
 let gamepad = null; let r2Pressed = false, l2Pressed = false, aPressed = false, r1Pressed = false; let lastAPressTime = 0;
 window.addEventListener('gamepadconnected', (e) => { gamepad = e.gamepad; });
 window.addEventListener('gamepaddisconnected', () => { gamepad = null; });
@@ -115,9 +96,8 @@ function placeAction() {
     if (!currentHit && !isSnapping) return;
     if (isSnapping && previewMesh.visible) { placeProp(); isSnapping = false; snapTarget = null; return; }
     if (currentHit) {
-        if (activeItem === 'METAL' || activeItem === 'CONCRETE') {
-            const block = (activeItem === 'METAL') ? BLOCK.METAL : BLOCK.CONCRETE;
-            WORLD.setVoxel(currentHit.prev.x, currentHit.prev.y, currentHit.prev.z, block, true);
+        if (activeItem === 'BLOCK') {
+            WORLD.setVoxel(currentHit.prev.x, currentHit.prev.y, currentHit.prev.z, BLOCK.METAL, true);
         } else if (propGeometries[activeItem] && previewMesh.visible) {
             placeProp();
         }
@@ -133,8 +113,7 @@ function placeProp() {
     newProp.castShadow = newProp.receiveShadow = true;
     newProp.name = activeItem.toLowerCase();
     
-    if (activeItem === 'DOOR') newProp.userData = { height: 2 };
-    else if (activeItem.includes('SURFACE')) newProp.userData = { height: 0.1 };
+    if (activeItem.includes('FLOOR')) newProp.userData = { height: 0.1 };
     else newProp.userData = { height: 1 };
     
     scene.add(newProp);
@@ -187,32 +166,22 @@ function tick() {
     if(isSnapping&&targetedProp!==snapTarget){isSnapping=false;snapTarget=null;}
 
     if(isSnapping&&snapTarget){
-        propHighlight.setFromObject(snapTarget);propHighlight.visible=true;previewMesh.geometry=propGeometries[activeItem];
-        const newY=snapTarget.position.y+snapTarget.userData.height;let newPos=new THREE.Vector3(snapTarget.position.x,newY,snapTarget.position.z);
-        previewMesh.position.copy(newPos);previewMesh.rotation.copy(snapTarget.rotation);previewMesh.visible=true;
+        propHighlight.setFromObject(snapTarget);propHighlight.visible=true;
+        if(propGeometries[activeItem]){
+            previewMesh.geometry=propGeometries[activeItem];
+            const newY=snapTarget.position.y+snapTarget.userData.height;let newPos=new THREE.Vector3(snapTarget.position.x,newY,snapTarget.position.z);
+            previewMesh.position.copy(newPos);previewMesh.rotation.copy(snapTarget.rotation);previewMesh.visible=true;
+        }
     }else{
         const voxelHit=raycastVoxel(yaw.position,getLookDirection(),8.0);
         if(propHit&&(!voxelHit||propHit.distance<voxelHit.distance)){propHighlight.setFromObject(propHit.object);propHighlight.visible=true;}
         else if(voxelHit){
-            currentHit={...voxelHit,isVoxel:true}; const isBlock=activeItem==='METAL'||activeItem==='CONCRETE'; const isProp=propGeometries[activeItem];
+            currentHit={...voxelHit,isVoxel:true}; const isBlock=activeItem==='BLOCK'; const isProp=propGeometries[activeItem];
             if(isBlock){voxelHighlight.position.set(currentHit.pos.x+0.5,currentHit.pos.y+0.5,currentHit.pos.z+0.5);voxelHighlight.visible=true;}
             else if(isProp){
                 previewMesh.geometry=propGeometries[activeItem]; const pos=currentHit.prev; const normal=currentHit.normal; const playerAngle=Math.round(yaw.rotation.y/(Math.PI/2))*(Math.PI/2);
-                if(activeItem.includes('SURFACE')){
-                    if(Math.abs(normal.y)>0.5){ // Top/Bottom
-                        previewMesh.geometry = propGeometries['SURFACE_TOP'];
-                        previewMesh.position.set(currentHit.pos.x+0.5, currentHit.pos.y + (normal.y > 0 ? 1 : 0), currentHit.pos.z+0.5);
-                        previewMesh.rotation.set(0,0,0);
-                    } else { // Sides
-                        previewMesh.geometry = propGeometries['SURFACE_SIDE'];
-                        previewMesh.position.set(pos.x+0.5, pos.y+0.5, pos.z+0.5);
-                        previewMesh.rotation.y = Math.atan2(normal.x, normal.z);
-                    }
-                } else {
-                    previewMesh.position.set(pos.x+0.5,pos.y,pos.z+0.5);
-                    previewMesh.rotation.y=playerAngle;
-                }
-                previewMesh.visible=true;
+                if(activeItem==='FLOOR'){if(normal.y>0.5){previewMesh.position.set(currentHit.pos.x+0.5,currentHit.pos.y+1,currentHit.pos.z+0.5);previewMesh.visible=true;}}
+                else{previewMesh.position.set(pos.x+0.5,pos.y,pos.z+0.5);previewMesh.rotation.y=playerAngle;previewMesh.visible=true;}
             }
         }
     }
