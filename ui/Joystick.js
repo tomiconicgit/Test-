@@ -3,18 +3,16 @@ export class Joystick {
   constructor(rootEl) {
     this.root = rootEl;
     
-    // Configurable sizes for easier maintenance
     const baseSize = 160;
     const knobSize = 64;
     this.center = { x: baseSize / 2, y: baseSize / 2 };
     this.knobStartPos = (baseSize - knobSize) / 2;
-    this.maxRadius = (baseSize / 2) - (knobSize / 2); // Max distance knob center can travel
+    this.maxRadius = (baseSize / 2) - (knobSize / 2);
 
     this.knob = document.createElement('div');
 
-    // Overhauled styles for a nicer look
+    // CORRECTED: Removed `position:'relative'` which was overriding the CSS file.
     Object.assign(this.root.style, { 
-      position:'relative', 
       borderRadius:'50%', 
       background:'rgba(0,0,0,0.25)', 
       border:'2px solid rgba(255,255,255,.1)',
@@ -58,7 +56,7 @@ export class Joystick {
     this.root.releasePointerCapture(e.pointerId);
     this.pointerId=null; 
     this.axX=0; this.axY=0; 
-    this.knob.style.transition = 'left .15s, top .15s'; // Animate return to center
+    this.knob.style.transition = 'left .15s, top .15s';
     this.knob.style.left=`${this.knobStartPos}px`; 
     this.knob.style.top=`${this.knobStartPos}px`; 
     setTimeout(() => this.knob.style.transition = '', 150);
@@ -72,14 +70,14 @@ export class Joystick {
     const dy = y - this.center.y;
     const r = Math.hypot(dx,dy);
     const maxR = this.maxRadius;
-    const k = r > maxR ? maxR/r : 1; // Clamp distance to maxRadius
+    const k = r > maxR ? maxR/r : 1;
     const nx = dx * k;
     const ny = dy * k;
     
     this.knob.style.left = `${this.center.x + nx - (this.knob.offsetWidth / 2)}px`;
     this.knob.style.top  = `${this.center.y + ny - (this.knob.offsetHeight / 2)}px`;
 
-    this.axX = nx / maxR; // right = +1
-    this.axY = ny / maxR; // down  = +1
+    this.axX = nx / maxR;
+    this.axY = ny / maxR;
   }
 }
