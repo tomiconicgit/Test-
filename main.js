@@ -49,53 +49,16 @@ const raycaster = new THREE.Raycaster();
 raycaster.far = 8.0;
 
 // --- PROP GEOMETRIES ---
-function createTrussWallGeometry() {
-    const beamSize = 0.1;
-    const width = 1.0;
-    const height = 1.0;
-    const geometries = [];
-
-    // Helper to create and position a beam
-    const addBeam = (sx, sy, sz, px, py, pz, rotZ = 0) => {
-        const geom = new THREE.BoxGeometry(sx, sy, sz);
-        if (rotZ !== 0) geom.rotateZ(rotZ);
-        geom.translate(px, py, pz);
-        geometries.push(geom);
-    };
-
-    // Frame
-    addBeam(width, beamSize, beamSize, 0, (height - beamSize) / 2, 0); // Top
-    addBeam(width, beamSize, beamSize, 0, -(height - beamSize) / 2, 0); // Bottom
-    addBeam(beamSize, height, beamSize, (width - beamSize) / 2, 0, 0); // Right
-    addBeam(beamSize, height, beamSize, -(width - beamSize) / 2, 0, 0); // Left
-
-    // X Brace
-    const braceLength = Math.sqrt(Math.pow(width - beamSize, 2) + Math.pow(height - beamSize, 2));
-    const braceAngle = Math.atan2(height - beamSize, width - beamSize);
-    addBeam(braceLength, beamSize, beamSize, 0, 0, 0, braceAngle);
-    addBeam(braceLength, beamSize, beamSize, 0, 0, 0, -braceAngle);
-
-    const finalGeom = BufferGeometryUtils.mergeGeometries(geometries);
-    if (!finalGeom) {
-        console.error("Truss geometry failed to create!");
-        return new THREE.BoxGeometry(1,1,0.1); // Return a fallback geometry
-    }
-    finalGeom.translate(0, 0.5, 0); // Set pivot to bottom-center
-    return finalGeom;
-}
-
 const wallGeo = new THREE.BoxGeometry(1, 1, 0.1); wallGeo.translate(0, 0.5, 0);
 const paneGeo = new THREE.BoxGeometry(1, 1, 0.05); paneGeo.translate(0, 0.5, 0);
 const doorGeo = new THREE.BoxGeometry(1, 2, 0.15); doorGeo.translate(0, 1, 0);
 const floorPanelGeo = new THREE.BoxGeometry(1, 0.05, 1); floorPanelGeo.translate(0, 0.025, 0);
-const trussWallGeo = createTrussWallGeometry();
 
 const propGeometries = { 
     'WALL': wallGeo, 
     'PANE': paneGeo, 
     'DOOR': doorGeo,
     'FLOOR_PANEL': floorPanelGeo,
-    'TRUSS_WALL': trussWallGeo
 };
 
 // Previews & Highlights
