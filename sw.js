@@ -2,7 +2,7 @@
 
 // --- CONFIGURATION ---
 // Increment this version every time you push updates
-const CACHE_VERSION = 'v1.0.0'; 
+const CACHE_VERSION = 'v1.0.1'; // <-- Incremented version
 const CACHE_NAME = `builder-pwa-${CACHE_VERSION}`;
 
 // List of all the files that make up the "app shell"
@@ -30,16 +30,19 @@ const APP_SHELL_URLS = [
   './engine/structures/glass.js',
   './engine/structures/slope.js',
   './engine/structures/wall.js',
+  './engine/structures/pipe.js', // <-- MODIFICATION: Added pipe.js
 
   // Assets
   './assets/metal_albedo.png',
   './assets/metal_ao.png',
-  './assets/metal_height.png',
+  './assets.metal_height.png',
   './assets/metal_metallic.png',
   './assets/metal_normal.png',
 
   // External assets
-  'https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js'
+  'https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js',
+  // <-- MODIFICATION: Added the new dependency -->
+  'https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/utils/BufferGeometryUtils.module.js'
 ];
 
 // --- SERVICE WORKER LOGIC ---
