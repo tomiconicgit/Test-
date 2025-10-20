@@ -41,7 +41,7 @@ const WORLD = new VoxelWorld(THREE, materials, { scene, sizeX:100, sizeZ:100, mi
 const SPEED = 5.0; const EYE = 1.6; let activeItem = 'BLOCK'; let isFlying = false; let isSnapping = false; let snapTarget = null;
 const props = []; const raycaster = new THREE.Raycaster(); raycaster.far = 8.0;
 
-// --- STABLE GEOMETRY FUNCTIONS ---
+// --- GEOMETRY FUNCTIONS ---
 function createSlopeGeometry() {
     const shape = new THREE.Shape().moveTo(0,0).lineTo(1,0).lineTo(0,1);
     const geometry = new THREE.ExtrudeGeometry(shape, { depth: 1, bevelEnabled: false });
@@ -49,64 +49,21 @@ function createSlopeGeometry() {
     return geometry;
 }
 
-function createHexWallGeometry() {
-    // A simple box with a hole is much more stable than merging many small boxes.
-    const shape = new THREE.Shape();
-    shape.moveTo(-0.5, -0.5);
-    shape.lineTo(0.5, -0.5);
-    shape.lineTo(0.5, 0.5);
-    shape.lineTo(-0.5, 0.5);
-    shape.closePath();
-
-    const holePath = new THREE.Path();
-    const r = 0.3; // Make hole slightly smaller to ensure solid corners
-    for (let i = 0; i < 6; i++) {
-        const angle = (i / 6) * Math.PI * 2;
-        if (i === 0) {
-            holePath.moveTo(Math.cos(angle) * r, Math.sin(angle) * r);
-        } else {
-            holePath.lineTo(Math.cos(angle) * r, Math.sin(angle) * r);
-        }
-    }
-    holePath.closePath();
-    shape.holes.push(holePath);
-
-    const geometry = new THREE.ExtrudeGeometry(shape, { depth: 0.1, bevelEnabled: false });
-    geometry.translate(0, 0, -0.05);
-    geometry.translate(0, 0.5, 0);
-    return geometry;
-}
-
-function createPipeFloorGeometry() {
-    // This creates a simple 'L' shape out of two cylinders, which is stable.
-    const vertGeo = new THREE.CylinderGeometry(0.2, 0.2, 1, 16);
-    vertGeo.translate(0, 0.5, 0);
-    
-    const horzGeo = new THREE.CylinderGeometry(0.2, 0.2, 0.5, 16);
-    horzGeo.rotateX(Math.PI / 2);
-    horzGeo.translate(0, 1, 0.25);
-    
-    const finalGeom = BufferGeometryUtils.mergeGeometries([vertGeo, horzGeo]);
-    return finalGeom;
-}
-
 const wallGeo = new THREE.BoxGeometry(1, 1, 0.1); wallGeo.translate(0, 0.5, 0);
 const paneGeo = new THREE.BoxGeometry(1, 1, 0.05); paneGeo.translate(0, 0.5, 0);
 const floorGeo = new THREE.BoxGeometry(1, 0.1, 1); floorGeo.translate(0, 0.05, 0);
 const slopeGeo = createSlopeGeometry();
 const cylinderGeo = new THREE.CylinderGeometry(0.5, 0.5, 1, 24); cylinderGeo.translate(0, 0.5, 0);
-const hexWallGeo = createHexWallGeometry();
-const pipeGeo = new THREE.CylinderGeometry(0.2, 0.2, 1, 16); pipeGeo.rotateZ(Math.PI / 2);
-const pipeEndGeo = new THREE.CylinderGeometry(0.25, 0.25, 0.1, 16); pipeEndGeo.rotateZ(Math.PI / 2);
-const pipeFloorGeo = createPipeFloorGeometry();
 
 const propGeometries = {
-    'WALL': wallGeo, 'PANE': paneGeo, 'FLOOR': floorGeo, 'SLOPE': slopeGeo,
-    'CYLINDER': cylinderGeo, 'HEX_WALL': hexWallGeo, 'PIPE': pipeGeo,
-    'PIPE_END': pipeEndGeo, 'PIPE_FLOOR': pipeFloorGeo,
+    'WALL': wallGeo, 
+    'PANE': paneGeo, 
+    'FLOOR': floorGeo, 
+    'SLOPE': slopeGeo,
+    'CYLINDER': cylinderGeo,
 };
 
-// Previews & Highlights (unchanged)
+// Previews & Highlights
 const previewMat = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.4, side: THREE.DoubleSide });
 const previewMesh = new THREE.Mesh(new THREE.BoxGeometry(), previewMat);
 previewMesh.visible = false; scene.add(previewMesh);
@@ -117,7 +74,7 @@ propHighlight.visible = false; scene.add(propHighlight);
 
 let currentHit = null;
 
-// Gamepad & UI Wiring (unchanged)
+// Gamepad & UI Wiring
 let gamepad = null; let r2Pressed = false, l2Pressed = false, aPressed = false, r1Pressed = false; let lastAPressTime = 0;
 window.addEventListener('gamepadconnected', (e) => { gamepad = e.gamepad; }); window.addEventListener('gamepaddisconnected', () => { gamepad = null; });
 const js = new Joystick(document.getElementById('joystick'));
@@ -147,7 +104,7 @@ function removeAction() {
 }
 document.getElementById('btnPlace').addEventListener('click', placeAction); document.getElementById('btnRemove').addEventListener('click', removeAction);
 
-// MAIN LOOP (unchanged)
+// MAIN LOOP
 let lastT = performance.now();
 tick();
 function tick() {
@@ -187,12 +144,7 @@ function tick() {
                 if(activeItem==='FLOOR'){if(normal.y>0.5){previewMesh.position.set(currentHit.pos.x+0.5,currentHit.pos.y+1,currentHit.pos.z+0.5);previewMesh.visible=true;}}
                 else{
                     previewMesh.position.set(pos.x+0.5,pos.y,pos.z+0.5);
-                    if(['PIPE', 'PIPE_END', 'PIPE_FLOOR'].includes(activeItem)) {
-                         if(Math.abs(normal.x)>0.5||Math.abs(normal.z)>0.5) previewMesh.rotation.y = Math.atan2(normal.x, normal.z);
-                         else previewMesh.rotation.y = playerAngle;
-                    } else {
-                        previewMesh.rotation.y = playerAngle;
-                    }
+                    previewMesh.rotation.y = playerAngle;
                     previewMesh.visible=true;
                 }
             }
