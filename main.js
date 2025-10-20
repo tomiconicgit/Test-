@@ -15,7 +15,7 @@ const scene = new THREE.Scene();
 scene.fog = new THREE.Fog(0xa7c4ff, 80, 300);
 renderer.setClearColor(0x87b4ff, 1.0);
 
-const camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 1000);
+const camera = new THREE.PerspectiveCamera(100, innerWidth/innerHeight, 0.1, 1000);
 const yaw = new THREE.Object3D(); const pitch = new THREE.Object3D();
 yaw.add(pitch); pitch.add(camera); scene.add(yaw);
 camera.position.set(0,0,0);
