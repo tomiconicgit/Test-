@@ -9,26 +9,23 @@ html,body { margin:0; height:100%; background:#000; color:var(--fg); font-family
   border:2px solid rgba(255,255,255,.6); border-radius:50%; pointer-events:none;
 }
 
-#hint { position:absolute; bottom:10px; left:50%; transform:translateX(-50%);
-  background:var(--glass); padding:6px 10px; border-radius:10px; font-size:12px; pointer-events:none; }
-
-#joystick { position:absolute; left:18px; bottom:18px; width:140px; height:140px; pointer-events:auto; }
+#joystick { position:absolute; left:18px; bottom:0px; width:140px; height:140px; pointer-events:auto; }
 
 #rightPanel {
-  position:absolute; right:18px; bottom:18px; width:180px; display:flex; flex-direction:column; gap:12px; pointer-events:auto;
+  position:absolute; right:18px; bottom:0px; width:180px; display:flex; flex-direction:column; gap:12px; pointer-events:auto;
 }
 #blockPicker { display:flex; gap:10px; padding:8px 10px; background:var(--glass); border:1px solid rgba(255,255,255,.08); border-radius:12px; }
 #blockPicker label { font-size:12px; display:flex; align-items:center; gap:6px; }
 
 #actionButtons { display:flex; gap:10px; }
 #actionButtons button {
-  flex:1; padding:12px 10px; border-radius:12px; border:1px solid rgba(255,255,255,.12);
+  flex:1; padding:16px 14px; border-radius:12px; border:1px solid rgba(255,255,255,.12);
   background:linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.04));
-  color:var(--fg); font-weight:600; letter-spacing:.2px;
+  color:var(--fg); font-weight:600; letter-spacing:.2px; font-size:14px;
 }
 #btnPlace { border-color:rgba(77,163,255,.35); }
 #btnRemove { border-color:rgba(255,100,100,.35); }
 
 @media (orientation:portrait) {
-  #hint::after { content:" • Tip: rotate phone for landscape"; }
+  #hint::after { content:" â¢ Tip: rotate phone for landscape"; }
 }
