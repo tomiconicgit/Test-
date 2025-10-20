@@ -41,7 +41,7 @@ const WORLD = new VoxelWorld(THREE, materials, { scene, sizeX:100, sizeZ:100, mi
 const SPEED = 5.0; const EYE = 1.6; let activeItem = 'BLOCK'; let isFlying = false; let isSnapping = false; let snapTarget = null;
 const props = []; const raycaster = new THREE.Raycaster(); raycaster.far = 8.0;
 
-// --- PROP GEOMETRIES ---
+// --- CORRECTED GEOMETRY FUNCTIONS ---
 function createSlopeGeometry() {
     const shape = new THREE.Shape().moveTo(0,0).lineTo(1,0).lineTo(0,1);
     const geometry = new THREE.ExtrudeGeometry(shape, { depth: 1, bevelEnabled: false });
@@ -50,20 +50,47 @@ function createSlopeGeometry() {
 }
 
 function createHexWallGeometry() {
-    const wallShape = new THREE.Shape();
-    wallShape.moveTo(-0.5, -0.5); wallShape.lineTo(0.5, -0.5); wallShape.lineTo(0.5, 0.5); wallShape.lineTo(-0.5, 0.5);
-    const hexHole = new THREE.Path();
-    const r = 0.4;
+    const r = 0.5; // radius
+    const wallThickness = 0.1;
+    const geometries = [];
     for (let i = 0; i < 6; i++) {
-        const a = (i/6)*Math.PI*2;
-        if (i === 0) hexHole.moveTo(Math.cos(a)*r, Math.sin(a)*r); else hexHole.lineTo(Math.cos(a)*r, Math.sin(a)*r);
+        const angle = (i / 6) * Math.PI * 2;
+        const nextAngle = ((i + 1) / 6) * Math.PI * 2;
+        const x1 = Math.cos(angle) * r;
+        const y1 = Math.sin(angle) * r;
+        const x2 = Math.cos(nextAngle) * r;
+        const y2 = Math.sin(nextAngle) * r;
+        
+        const beamLength = Math.hypot(x2 - x1, y2 - y1);
+        const beam = new THREE.BoxGeometry(beamLength, wallThickness, wallThickness);
+        beam.rotateZ(Math.atan2(y2 - y1, x2 - x1));
+        beam.translate((x1 + x2) / 2, (y1 + y2) / 2, 0);
+        geometries.push(beam);
     }
-    hexHole.closePath();
-    wallShape.holes.push(hexHole);
-    const geometry = new THREE.ExtrudeGeometry(wallShape, { depth: 0.1, bevelEnabled: false });
-    geometry.translate(0, 0, -0.05).translate(0, 0.5, 0);
-    return geometry;
+    const finalGeom = BufferGeometryUtils.mergeGeometries(geometries);
+    finalGeom.translate(0, 0.5, 0); // Set pivot to bottom
+    return finalGeom;
 }
+
+function createPipeFloorGeometry() {
+    const radius = 0.2;
+    const tubeRadius = 0.25;
+    const geometries = [];
+    const verticalPipe = new THREE.CylinderGeometry(radius, radius, 0.5, 16);
+    verticalPipe.translate(0, 0.25, 0);
+    geometries.push(verticalPipe);
+    
+    const elbow = new THREE.TorusGeometry(tubeRadius, radius, 8, 16, Math.PI / 2);
+    elbow.rotateY(Math.PI / 2);
+    elbow.translate(0, 0.5, tubeRadius);
+    geometries.push(elbow);
+    
+    const finalGeom = BufferGeometryUtils.mergeGeometries(geometries);
+    finalGeom.translate(0, 0, -tubeRadius); // Center it
+    finalGeom.translate(0, 0, 0.5); // Align with block edge
+    return finalGeom;
+}
+
 
 const wallGeo = new THREE.BoxGeometry(1, 1, 0.1); wallGeo.translate(0, 0.5, 0);
 const paneGeo = new THREE.BoxGeometry(1, 1, 0.05); paneGeo.translate(0, 0.5, 0);
@@ -71,9 +98,9 @@ const floorGeo = new THREE.BoxGeometry(1, 0.1, 1); floorGeo.translate(0, 0.05, 0
 const slopeGeo = createSlopeGeometry();
 const cylinderGeo = new THREE.CylinderGeometry(0.5, 0.5, 1, 24); cylinderGeo.translate(0, 0.5, 0);
 const hexWallGeo = createHexWallGeometry();
-const pipeGeo = new THREE.CylinderGeometry(0.2, 0.2, 1, 16); pipeGeo.rotateX(Math.PI/2);
-const pipeEndGeo = new THREE.CylinderGeometry(0.3, 0.3, 0.1, 16); pipeEndGeo.rotateX(Math.PI/2);
-const pipeFloorGeo = BufferGeometryUtils.mergeGeometries([ new THREE.TorusGeometry(0.25,0.2,8,16,Math.PI/2).rotateY(Math.PI/2).translate(0,0.25,0.25), new THREE.CylinderGeometry(0.2,0.2,0.5,16).translate(0,0.25,0) ]).translate(0,0.5,-0.25);
+const pipeGeo = new THREE.CylinderGeometry(0.2, 0.2, 1, 16); pipeGeo.rotateZ(Math.PI/2);
+const pipeEndGeo = new THREE.CylinderGeometry(0.25, 0.25, 0.1, 16); pipeEndGeo.rotateZ(Math.PI/2);
+const pipeFloorGeo = createPipeFloorGeometry();
 
 const propGeometries = {
     'WALL': wallGeo, 'PANE': paneGeo, 'FLOOR': floorGeo, 'SLOPE': slopeGeo,
@@ -147,7 +174,7 @@ function tick() {
         if(propGeometries[activeItem]){
             previewMesh.geometry=propGeometries[activeItem];
             const targetBox = new THREE.Box3().setFromObject(snapTarget);
-            const newY = targetBox.max.y; // CORRECTED Stacking Logic
+            const newY = targetBox.max.y; // Corrected Stacking Logic
             let newPos = new THREE.Vector3(snapTarget.position.x,newY,snapTarget.position.z);
             previewMesh.position.copy(newPos);previewMesh.rotation.copy(snapTarget.rotation);previewMesh.visible=true;
         }
@@ -160,7 +187,16 @@ function tick() {
             else if(isProp){
                 previewMesh.geometry=propGeometries[activeItem]; const pos=currentHit.prev; const normal=currentHit.normal; const playerAngle=Math.round(yaw.rotation.y/(Math.PI/2))*(Math.PI/2);
                 if(activeItem==='FLOOR'){if(normal.y>0.5){previewMesh.position.set(currentHit.pos.x+0.5,currentHit.pos.y+1,currentHit.pos.z+0.5);previewMesh.visible=true;}}
-                else{previewMesh.position.set(pos.x+0.5,pos.y,pos.z+0.5);previewMesh.rotation.y=playerAngle;previewMesh.visible=true;}
+                else{
+                    previewMesh.position.set(pos.x+0.5,pos.y,pos.z+0.5);
+                    if(['PIPE', 'PIPE_END', 'PIPE_FLOOR'].includes(activeItem)) {
+                         if(Math.abs(normal.x)>0.5||Math.abs(normal.z)>0.5) previewMesh.rotation.y = Math.atan2(normal.x, normal.z);
+                         else previewMesh.rotation.y = playerAngle;
+                    } else {
+                        previewMesh.rotation.y = playerAngle;
+                    }
+                    previewMesh.visible=true;
+                }
             }
         }
     }
