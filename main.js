@@ -15,27 +15,23 @@ const scene = new THREE.Scene();
 scene.fog = new THREE.Fog(0xa7c4ff, 80, 300);
 renderer.setClearColor(0x87b4ff, 1.0);
 
-const camera = new THREE.PerspectiveCamera(100, innerWidth/innerHeight, 0.1, 1000);
+const camera = new THREE.PerspectiveCamera(90, innerWidth/innerHeight, 0.1, 1000);
 const yaw = new THREE.Object3D(); const pitch = new THREE.Object3D();
 yaw.add(pitch); pitch.add(camera); scene.add(yaw);
 camera.position.set(0,0,0);
 
-// Lights - NEW 4-WAY LIGHTING SYSTEM
-const hemi = new THREE.HemisphereLight(0xddeeff, 0x998877, 1.2); // Balanced ambient light
+// Lights - 4-WAY LIGHTING SYSTEM
+const hemi = new THREE.HemisphereLight(0xddeeff, 0x998877, 1.2);
 scene.add(hemi);
 
-// Main light source with shadows
 const sun = new THREE.DirectionalLight(0xffffff, 0.8);
 sun.position.set(100, 100, 50);
 sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048); // Higher quality shadows
-sun.shadow.camera.left = -80;
-sun.shadow.camera.right = 80;
-sun.shadow.camera.top = 80;
-sun.shadow.camera.bottom = -80;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.left = -80; sun.shadow.camera.right = 80;
+sun.shadow.camera.top = 80; sun.shadow.camera.bottom = -80;
 scene.add(sun);
 
-// Fill lights from other directions (no shadows for performance)
 const lightFill1 = new THREE.DirectionalLight(0xffffff, 0.4);
 lightFill1.position.set(-100, 60, -50);
 scene.add(lightFill1);
@@ -48,39 +44,30 @@ const lightFill3 = new THREE.DirectionalLight(0xffffff, 0.4);
 lightFill3.position.set(-50, 60, 100);
 scene.add(lightFill3);
 
-
 const materials = await makeMaterials();
 const WORLD = new VoxelWorld(THREE, materials, { scene, sizeX:100, sizeZ:100, minY:-30, maxY:500 });
 
 // Player state
-const SPEED = 4.0;           // m/s
-const EYE = 1.6;             // eye height over ground
+const SPEED = 4.0;
+const EYE = 1.6;
 let activeBlock = BLOCK.METAL;
 
 // Wireframe highlight for targeted block
 const boxGeom = new THREE.BoxGeometry(1, 1, 1);
 const edges = new THREE.EdgesGeometry(boxGeom);
-const lineMat = new THREE.LineBasicMaterial({
-  color: 0xffffff,
-  linewidth: 2,
-  transparent: true,
-  opacity: 0.9,
-});
+const lineMat = new THREE.LineBasicMaterial({ color: 0xffffff, linewidth: 2, transparent: true, opacity: 0.9 });
 const highlightWireframe = new THREE.LineSegments(edges, lineMat);
 highlightWireframe.visible = false;
 scene.add(highlightWireframe);
 
-
-// Current hit for actions
 let currentHit = null;
 
 // UI wiring
 const js = new Joystick(document.getElementById('joystick'));
 document.getElementById('btnPlace').addEventListener('click', () => {
   if (!currentHit) return;
-  const p = currentHit.prev; // adjacent empty cell
-  if(!inWorldXZ(p.x,p.z)) return;
-  if(p.y < WORLD.minY || p.y > WORLD.maxY) return;
+  const p = currentHit.prev;
+  if(!inWorldXZ(p.x,p.z) || p.y < WORLD.minY || p.y > WORLD.maxY) return;
   WORLD.setVoxel(p.x, p.y, p.z, activeBlock, true);
 });
 document.getElementById('btnRemove').addEventListener('click', () => {
@@ -94,7 +81,7 @@ document.querySelectorAll('input[name="block"]').forEach(r=>{
 // Look (right-half drag)
 let lookId=null, lastX=0, lastY=0;
 window.addEventListener('pointerdown', e=>{
-  if(e.clientX < innerWidth*0.5) return; // left side reserved for joystick
+  if(e.clientX < innerWidth*0.5) return;
   lookId = e.pointerId; lastX=e.clientX; lastY=e.clientY;
 });
 window.addEventListener('pointermove', e=>{
@@ -114,27 +101,24 @@ function tick(){
   requestAnimationFrame(tick);
   const t = performance.now(); const dt = Math.min((t-lastT)/1000, 0.05); lastT=t;
 
-  // joystick: axX right(+), axY down(+)
-  const forward = -js.axY;        // up on stick -> forward
-  const strafe  =  js.axX;        // right on stick -> +x
+  const forward = -js.axY;
+  const strafe  =  js.axX;
   const dir = getForward();
   const right = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0,1,0)).normalize();
   yaw.position.addScaledVector(dir, forward * SPEED * dt);
   yaw.position.addScaledVector(right, strafe * SPEED * dt);
   clampXZ(yaw.position);
 
-  // ground height
   const gx=Math.floor(yaw.position.x), gz=Math.floor(yaw.position.z);
   const top = WORLD.topY(gx,gz);
   const targetY = (top<=WORLD.minY-1 ? 0 : top + 1) + EYE;
-  yaw.position.y += (targetY - yaw.position.y) * 0.35; // smooth step
+  yaw.position.y += (targetY - yaw.position.y) * 0.35;
 
-  // Update highlight and currentHit
   currentHit = raycastVoxel(yaw.position, getLookDirection(), 8.0);
   if (currentHit) {
     highlightWireframe.visible = true;
     highlightWireframe.position.set(currentHit.pos.x + 0.5, currentHit.pos.y + 0.5, currentHit.pos.z + 0.5);
-    highlightWireframe.scale.set(1.002, 1.002, 1.002); // slight oversize to prevent z-fighting
+    highlightWireframe.scale.set(1.002, 1.002, 1.002);
   } else {
     highlightWireframe.visible = false;
   }
@@ -160,7 +144,8 @@ function getLookDirection(){
   d.normalize();
   return d;
 }
-// Fast voxel ray (3D DDA)
+
+// Fast voxel ray (3D DDA) - CORRECTED
 function raycastVoxel(origin, dir, maxDist){
   const pos = new THREE.Vector3().copy(origin);
   const step = new THREE.Vector3(Math.sign(dir.x)||1, Math.sign(dir.y)||1, Math.sign(dir.z)||1);
@@ -171,15 +156,18 @@ function raycastVoxel(origin, dir, maxDist){
   );
   let voxel = new THREE.Vector3(Math.floor(pos.x), Math.floor(pos.y), Math.floor(pos.z));
   const bound = new THREE.Vector3(
-    voxel.x + (step.x>0 ? 1 : 0),
-    voxel.y + (step.y>0 ? 1 : 0),
-    voxel.z + (step.z>0 ? 1 : 0)
+    voxel.x + (step.x > 0 ? 1 : 0),
+    voxel.y + (step.y > 0 ? 1 : 0),
+    voxel.z + (step.z > 0 ? 1 : 0)
   );
+  
+  // CORRECTED tMax calculation
   const tMax = new THREE.Vector3(
-    (bound.x - pos.x) * tDelta.x,
-    (bound.y - pos.y) * tDelta.y,
-    (bound.z - pos.z) * tDelta.z
+    dir.x !== 0 ? (bound.x - pos.x) / dir.x : 1e9,
+    dir.y !== 0 ? (bound.y - pos.y) / dir.y : 1e9,
+    dir.z !== 0 ? (bound.z - pos.z) / dir.z : 1e9
   );
+
   let dist = 0; let lastVoxel = voxel.clone();
   for(let i=0;i<256;i++){
     if(inWorldXZ(voxel.x, voxel.z)){
