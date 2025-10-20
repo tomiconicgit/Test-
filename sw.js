@@ -1,4 +1,4 @@
-const CACHE_NAME = 'voxel-game-cache-v3';
+const CACHE_NAME = 'voxel-game-cache-v4';
 const urlsToCache = [
   './',
   './index.html',
@@ -16,36 +16,32 @@ const urlsToCache = [
   'https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/objects/Sky.js'
 ];
 
-self.addEventListener('install', event => {
-  event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(urlsToCache)));
+self.addEventListener('install', e => {
+  e.waitUntil(caches.open(CACHE_NAME).then(c => c.addAll(urlsToCache)));
   self.skipWaiting();
 });
 
-self.addEventListener('activate', event => {
-  event.waitUntil(
+self.addEventListener('activate', e => {
+  e.waitUntil(
     caches.keys().then(keys => Promise.all(keys.map(k => k !== CACHE_NAME && caches.delete(k))))
   );
   self.clients.claim();
 });
 
-// Network-first for modules; cache-first for textures/icons
-self.addEventListener('fetch', event => {
-  const req = event.request;
+// Cache-first for images; network-first for scripts/modules
+self.addEventListener('fetch', e => {
+  const req = e.request;
   const isAsset = req.url.includes('/assets/') || req.destination === 'image' || req.url.endsWith('.png');
   if (isAsset) {
-    event.respondWith(
-      caches.match(req).then(cached => cached || fetch(req).then(res => {
-        const copy = res.clone();
-        caches.open(CACHE_NAME).then(c => c.put(req, copy));
-        return res;
+    e.respondWith(
+      caches.match(req).then(hit => hit || fetch(req).then(res => {
+        const copy = res.clone(); caches.open(CACHE_NAME).then(c => c.put(req, copy)); return res;
       }))
     );
   } else {
-    event.respondWith(
+    e.respondWith(
       fetch(req).then(res => {
-        const copy = res.clone();
-        caches.open(CACHE_NAME).then(c => c.put(req, copy));
-        return res;
+        const copy = res.clone(); caches.open(CACHE_NAME).then(c => c.put(req, copy)); return res;
       }).catch(() => caches.match(req))
     );
   }
