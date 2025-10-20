@@ -1,4 +1,5 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js';
+import * as BufferGeometryUtils from 'https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/utils/BufferGeometryUtils.js';
 import { makeMaterials } from './engine/Materials.js';
 import { VoxelWorld, BLOCK } from './engine/VoxelWorld.js';
 import { Joystick } from './ui/Joystick.js';
@@ -47,11 +48,55 @@ const props = [];
 const raycaster = new THREE.Raycaster();
 raycaster.far = 8.0;
 
-// Prop Geometries
+// --- PROP GEOMETRIES ---
+function createTrussWallGeometry() {
+    const beamSize = 0.1;
+    const width = 1.0;
+    const height = 1.0;
+    const geometries = [];
+
+    // Helper to create and position a beam
+    const addBeam = (sx, sy, sz, px, py, pz, rotZ = 0) => {
+        const geom = new THREE.BoxGeometry(sx, sy, sz);
+        if (rotZ !== 0) geom.rotateZ(rotZ);
+        geom.translate(px, py, pz);
+        geometries.push(geom);
+    };
+
+    // Frame
+    addBeam(width, beamSize, beamSize, 0, (height - beamSize) / 2, 0); // Top
+    addBeam(width, beamSize, beamSize, 0, -(height - beamSize) / 2, 0); // Bottom
+    addBeam(beamSize, height, beamSize, (width - beamSize) / 2, 0, 0); // Right
+    addBeam(beamSize, height, beamSize, -(width - beamSize) / 2, 0, 0); // Left
+
+    // X Brace
+    const braceLength = Math.sqrt(Math.pow(width - beamSize, 2) + Math.pow(height - beamSize, 2));
+    const braceAngle = Math.atan2(height - beamSize, width - beamSize);
+    addBeam(braceLength, beamSize, beamSize, 0, 0, 0, braceAngle);
+    addBeam(braceLength, beamSize, beamSize, 0, 0, 0, -braceAngle);
+
+    const finalGeom = BufferGeometryUtils.mergeGeometries(geometries);
+    if (!finalGeom) {
+        console.error("Truss geometry failed to create!");
+        return new THREE.BoxGeometry(1,1,0.1); // Return a fallback geometry
+    }
+    finalGeom.translate(0, 0.5, 0); // Set pivot to bottom-center
+    return finalGeom;
+}
+
 const wallGeo = new THREE.BoxGeometry(1, 1, 0.1); wallGeo.translate(0, 0.5, 0);
 const paneGeo = new THREE.BoxGeometry(1, 1, 0.05); paneGeo.translate(0, 0.5, 0);
 const doorGeo = new THREE.BoxGeometry(1, 2, 0.15); doorGeo.translate(0, 1, 0);
-const propGeometries = { 'WALL': wallGeo, 'PANE': paneGeo, 'DOOR': doorGeo };
+const floorPanelGeo = new THREE.BoxGeometry(1, 0.05, 1); floorPanelGeo.translate(0, 0.025, 0);
+const trussWallGeo = createTrussWallGeometry();
+
+const propGeometries = { 
+    'WALL': wallGeo, 
+    'PANE': paneGeo, 
+    'DOOR': doorGeo,
+    'FLOOR_PANEL': floorPanelGeo,
+    'TRUSS_WALL': trussWallGeo
+};
 
 // Previews & Highlights
 const previewMat = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.4, side: THREE.DoubleSide });
@@ -86,18 +131,15 @@ function placeAction() {
     if (!currentHit && !isSnapping) return;
     if (isSnapping && previewMesh.visible) {
         placeProp();
-        isSnapping = false;
-        snapTarget = null;
-        return;
+        isSnapping = false; snapTarget = null; return;
     }
     if (currentHit) {
-        const item = activeItem;
-        if (item === 'METAL' || item === 'CONCRETE') {
-            const block = (item === 'METAL') ? BLOCK.METAL : BLOCK.CONCRETE;
+        if (activeItem === 'METAL' || activeItem === 'CONCRETE') {
+            const block = (activeItem === 'METAL') ? BLOCK.METAL : BLOCK.CONCRETE;
             const p = currentHit.prev;
             if (!inWorldXZ(p.x, p.z) || p.y < WORLD.minY || p.y > WORLD.maxY) return;
             WORLD.setVoxel(p.x, p.y, p.z, block, true);
-        } else if (propGeometries[item] && previewMesh.visible) {
+        } else if (propGeometries[activeItem] && previewMesh.visible) {
             placeProp();
         }
     }
@@ -111,8 +153,11 @@ function placeProp() {
     newProp.rotation.copy(previewMesh.rotation);
     newProp.castShadow = newProp.receiveShadow = true;
     newProp.name = activeItem.toLowerCase();
-    newProp.userData.height = (activeItem === 'DOOR') ? 2 : 1;
-    if (activeItem === 'DOOR') newProp.userData.isOpen = false;
+    
+    if (activeItem === 'DOOR') newProp.userData = { height: 2, isOpen: false };
+    else if (activeItem === 'FLOOR_PANEL') newProp.userData = { height: 0.05 };
+    else newProp.userData = { height: 1 };
+    
     scene.add(newProp);
     props.push(newProp);
 }
@@ -122,10 +167,7 @@ function removeAction() {
     const intersects = raycaster.intersectObjects(props);
     if (intersects.length > 0) {
         const obj = intersects[0].object;
-        if(snapTarget === obj) {
-            isSnapping = false;
-            snapTarget = null;
-        }
+        if(snapTarget === obj) { isSnapping = false; snapTarget = null; }
         scene.remove(obj);
         props.splice(props.indexOf(obj), 1);
         if (obj.geometry) obj.geometry.dispose();
@@ -137,7 +179,7 @@ function removeAction() {
 document.getElementById('btnPlace').addEventListener('click', placeAction);
 document.getElementById('btnRemove').addEventListener('click', removeAction);
 
-// --- MAIN LOOP ---
+// MAIN LOOP
 let lastT = performance.now();
 tick();
 
@@ -146,67 +188,34 @@ function tick() {
     const t = performance.now();
     const dt = Math.min((t - lastT) / 1000, 0.05);
     lastT = t;
-
     let targetedProp = null;
 
-    // --- GAMEPAD INPUT ---
     if (navigator.getGamepads && navigator.getGamepads()[0]) {
         gamepad = navigator.getGamepads()[0];
         const deadzone = 0.15;
-
-        const ax0 = gamepad.axes[0];
-        const ax1 = gamepad.axes[1];
-        if (Math.abs(ax0) > deadzone || Math.abs(ax1) > deadzone) {
-            js.axX = ax0;
-            js.axY = ax1;
-        } else {
-            js.axX = 0;
-            js.axY = 0;
-        }
-
-        const ax2 = gamepad.axes[2];
-        const ax3 = gamepad.axes[3];
+        const ax0 = gamepad.axes[0]; const ax1 = gamepad.axes[1];
+        if (Math.abs(ax0) > deadzone || Math.abs(ax1) > deadzone) { js.axX = ax0; js.axY = ax1; }
+        else { js.axX = 0; js.axY = 0; }
+        const ax2 = gamepad.axes[2]; const ax3 = gamepad.axes[3];
         if (Math.abs(ax2) > deadzone) yaw.rotation.y -= ax2 * 2.5 * dt;
         if (Math.abs(ax3) > deadzone) pitch.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, pitch.rotation.x - ax3 * 2.5 * dt));
-
-        if (gamepad.buttons[7].pressed && !r2Pressed) { placeAction(); r2Pressed = true; }
-        else if (!gamepad.buttons[7].pressed) { r2Pressed = false; }
-
-        if (gamepad.buttons[6].pressed && !l2Pressed) { removeAction(); l2Pressed = true; }
-        else if (!gamepad.buttons[6].pressed) { l2Pressed = false; }
-
-        if (gamepad.buttons[0].pressed && !aPressed) {
-            if (t - lastAPressTime < 300) { isFlying = !isFlying; }
-            lastAPressTime = t;
-            aPressed = true;
-        } else if (!gamepad.buttons[0].pressed) { aPressed = false; }
-
-        if (isFlying) {
-            const flySpeed = SPEED * dt;
-            if (gamepad.buttons[0].pressed) yaw.position.y += flySpeed;
-            if (gamepad.buttons[2].pressed) yaw.position.y -= flySpeed;
-        }
-
+        if (gamepad.buttons[7].pressed && !r2Pressed) { placeAction(); r2Pressed = true; } else if (!gamepad.buttons[7].pressed) { r2Pressed = false; }
+        if (gamepad.buttons[6].pressed && !l2Pressed) { removeAction(); l2Pressed = true; } else if (!gamepad.buttons[6].pressed) { l2Pressed = false; }
+        if (gamepad.buttons[0].pressed && !aPressed) { if (t - lastAPressTime < 300) { isFlying = !isFlying; } lastAPressTime = t; aPressed = true; } else if (!gamepad.buttons[0].pressed) { aPressed = false; }
+        if (isFlying) { const flySpeed = SPEED * dt; if (gamepad.buttons[0].pressed) yaw.position.y += flySpeed; if (gamepad.buttons[2].pressed) yaw.position.y -= flySpeed; }
         if (gamepad.buttons[5].pressed && !r1Pressed) {
             raycaster.setFromCamera({ x: 0, y: 0 }, camera);
             const intersects = raycaster.intersectObjects(props);
             if (intersects.length > 0) {
                 targetedProp = intersects[0].object;
-                if (isSnapping && snapTarget === targetedProp) {
-                    isSnapping = false;
-                    snapTarget = null;
-                } else {
-                    isSnapping = true;
-                    snapTarget = targetedProp;
-                }
+                if (isSnapping && snapTarget === targetedProp) { isSnapping = false; snapTarget = null; }
+                else { isSnapping = true; snapTarget = targetedProp; }
             }
             r1Pressed = true;
         } else if (!gamepad.buttons[5].pressed) { r1Pressed = false; }
     }
     
-    // --- MOVEMENT ---
-    const forward = -js.axY;
-    const strafe = js.axX;
+    const forward = -js.axY; const strafe = js.axX;
     const dir = getForward(isFlying);
     const right = new THREE.Vector3().crossVectors(dir, new THREE.Vector3(0, 1, 0)).normalize();
     yaw.position.addScaledVector(dir, forward * SPEED * dt);
@@ -219,7 +228,6 @@ function tick() {
         yaw.position.y += (targetY - yaw.position.y) * 0.35;
     }
     
-    // --- RAYCASTING & PREVIEWS ---
     currentHit = null;
     voxelHighlight.visible = false;
     propHighlight.visible = false;
@@ -230,17 +238,18 @@ function tick() {
     const propHit = propIntersects.length > 0 ? propIntersects[0] : null;
     targetedProp = propHit ? propHit.object : null;
 
-    if (isSnapping && targetedProp !== snapTarget) {
-        isSnapping = false;
-        snapTarget = null;
-    }
+    if (isSnapping && targetedProp !== snapTarget) { isSnapping = false; snapTarget = null; }
 
     if (isSnapping && snapTarget) {
         propHighlight.setFromObject(snapTarget);
         propHighlight.visible = true;
         previewMesh.geometry = propGeometries[activeItem];
         const newY = snapTarget.position.y + snapTarget.userData.height;
-        previewMesh.position.set(snapTarget.position.x, newY, snapTarget.position.z);
+        let newPos = new THREE.Vector3(snapTarget.position.x, newY, snapTarget.position.z);
+        if (snapTarget.name === 'floor_panel') {
+            newPos = new THREE.Vector3(Math.round(snapTarget.position.x - 0.5), snapTarget.position.y + snapTarget.userData.height, Math.round(snapTarget.position.z - 0.5));
+        }
+        previewMesh.position.copy(newPos);
         previewMesh.rotation.copy(snapTarget.rotation);
         previewMesh.visible = true;
     } else {
@@ -249,29 +258,37 @@ function tick() {
             propHighlight.setFromObject(propHit.object);
             propHighlight.visible = true;
         } else if (voxelHit) {
-            currentHit = voxelHit;
-            currentHit.isVoxel = true;
-            const isBlockActive = activeItem === 'METAL' || activeItem === 'CONCRETE';
-            if (isBlockActive) {
+            currentHit = { ...voxelHit, isVoxel: true };
+            const isBlock = activeItem === 'METAL' || activeItem === 'CONCRETE';
+            const isProp = propGeometries[activeItem];
+            
+            if (isBlock) {
                 voxelHighlight.position.set(currentHit.pos.x + 0.5, currentHit.pos.y + 0.5, currentHit.pos.z + 0.5);
                 voxelHighlight.visible = true;
-            } else if (propGeometries[activeItem]) {
-                // *** THIS IS THE CORRECTED LINE ***
+            } else if (isProp) {
                 previewMesh.geometry = propGeometries[activeItem];
                 const pos = currentHit.prev;
                 const normal = currentHit.normal;
-                previewMesh.position.set(pos.x + 0.5, pos.y, pos.z + 0.5);
-                if (Math.abs(normal.x) > 0.5) previewMesh.rotation.y = Math.PI / 2;
-                else if (Math.abs(normal.z) > 0.5) previewMesh.rotation.y = 0;
-                else previewMesh.rotation.y = Math.round(yaw.rotation.y / (Math.PI / 2)) * (Math.PI / 2);
-                previewMesh.visible = true;
+
+                if (activeItem === 'FLOOR_PANEL') {
+                    if (normal.y > 0.5) { // Can only place floors on top of blocks
+                        previewMesh.position.set(currentHit.pos.x + 0.5, currentHit.pos.y + 1, currentHit.pos.z + 0.5);
+                        previewMesh.visible = true;
+                    }
+                } else { // Walls, Panes, Doors
+                    previewMesh.position.set(pos.x + 0.5, pos.y, pos.z + 0.5);
+                    if (Math.abs(normal.x) > 0.5) previewMesh.rotation.y = Math.PI / 2;
+                    else if (Math.abs(normal.z) > 0.5) previewMesh.rotation.y = 0;
+                    else previewMesh.rotation.y = Math.round(yaw.rotation.y / (Math.PI / 2)) * (Math.PI / 2);
+                    previewMesh.visible = true;
+                }
             }
         }
     }
     renderer.render(scene, camera);
 }
 
-// ... (Helpers: clampXZ, inWorldXZ, getForward, getLookDirection, raycastVoxel remain the same)
+// ... (Helpers remain the same)
 function clampXZ(v){v.x=Math.max(0.001,Math.min(99.999,v.x));v.z=Math.max(0.001,Math.min(99.999,v.z));}
 function inWorldXZ(x,z){return x>=0&&z>=0&&x<100&&z<100;}
 function getForward(flying=false){const f=new THREE.Vector3(0,0,-1);f.applyQuaternion(pitch.quaternion).applyQuaternion(yaw.quaternion);if(!flying)f.y=0;f.normalize();return f;}
