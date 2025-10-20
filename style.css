@@ -5,27 +5,61 @@ html,body { margin:0; height:100%; background:#000; color:var(--fg); font-family
 
 #hud { position:fixed; inset:0; pointer-events:none; }
 #crosshair {
-  position:absolute; left:50%; top:50%; width:10px; height:10px; margin:-5px 0 0 -5px;
-  border:2px solid rgba(255,255,255,.6); border-radius:50%; pointer-events:none;
+  /* The center dot is no longer needed, replaced by wireframe highlight */
+  display: none;
 }
 
-#joystick { position:absolute; left:18px; bottom:0px; width:140px; height:140px; pointer-events:auto; }
+#joystick { 
+  position:absolute; 
+  left: 24px;   /* Moved to bottom-left corner with padding */
+  bottom: 24px; 
+  width: 160px;  /* Increased size */
+  height: 160px; 
+  pointer-events:auto; 
+}
 
 #rightPanel {
-  position:absolute; right:18px; bottom:0px; width:180px; display:flex; flex-direction:column; gap:12px; pointer-events:auto;
+  position:absolute; 
+  right: 24px;  /* Moved to bottom-right corner with padding */
+  bottom: 24px; 
+  width: 200px; /* Increased width for larger buttons */
+  display:flex; 
+  flex-direction:column; 
+  gap:16px;    /* Increased gap */
+  pointer-events:auto;
 }
-#blockPicker { display:flex; gap:10px; padding:8px 10px; background:var(--glass); border:1px solid rgba(255,255,255,.08); border-radius:12px; }
-#blockPicker label { font-size:12px; display:flex; align-items:center; gap:6px; }
+#blockPicker { 
+  display:flex; 
+  gap:10px; 
+  padding:12px 14px; /* More padding */
+  background:var(--glass); 
+  border:1px solid rgba(255,255,255,.08); 
+  border-radius:16px; /* Bolder radius */
+  backdrop-filter: blur(5px);
+}
+#blockPicker label { font-size:14px; display:flex; align-items:center; gap:6px; }
 
-#actionButtons { display:flex; gap:10px; }
+#actionButtons { display:flex; gap:12px; }
 #actionButtons button {
-  flex:1; padding:16px 14px; border-radius:12px; border:1px solid rgba(255,255,255,.12);
-  background:linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.04));
-  color:var(--fg); font-weight:600; letter-spacing:.2px; font-size:14px;
+  flex:1; 
+  padding: 20px 14px; /* Increased padding for better touch */
+  border-radius:16px; /* Bolder radius */
+  border:1px solid rgba(255,255,255,.2);
+  background: rgba(20,22,25,.5); /* Overhauled style */
+  backdrop-filter: blur(8px);
+  color:var(--fg); 
+  font-weight:700; 
+  letter-spacing:.5px; 
+  font-size:16px; /* Larger font */
+  transition: background .2s;
 }
+#actionButtons button:active {
+  background: rgba(40,42,45,.6); /* Feedback on press */
+}
+
 #btnPlace { border-color:rgba(77,163,255,.35); }
 #btnRemove { border-color:rgba(255,100,100,.35); }
 
 @media (orientation:portrait) {
-  #hint::after { content:" â¢ Tip: rotate phone for landscape"; }
+  #hint::after { content:" • Tip: rotate phone for landscape"; }
 }
