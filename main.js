@@ -15,13 +15,10 @@ import { createFloorGeometry } from './engine/structures/floor.js';
 import { createGlassPaneGeometry } from './engine/structures/glass.js';
 import { createSlopeGeometry } from './engine/structures/slope.js';
 import { createCylinderGeometry } from './engine/structures/cylinder.js';
-// --- MODIFICATION HERE ---
-// Import the 2 new simple pipe functions
 import { 
     createPipeStraightGeometry, 
     createPipeElbowGeometry
 } from './engine/structures/pipe.js';
-// --- END MODIFICATION ---
 
 // --- INITIALIZATION ---
 const canvas = document.getElementById('c');
@@ -46,14 +43,12 @@ sun.shadow.mapSize.set(2048, 2048);
 sun.shadow.camera.left = -80; sun.shadow.camera.right = 80;
 sun.shadow.camera.top = 80; sun.shadow.camera.bottom = -80;
 scene.add(sun);
-const lightFill1 = new THREE.DirectionalLight(0xffffff, 0.4); lightFill1.position.set(-100, 60, -50); scene.add(lightFill1);
+const lightFill1 = new THREE.DirectionLigh(0xffffff, 0.4); lightFill1.position.set(-100, 60, -50); scene.add(lightFill1);
 const lightFill2 = new THREE.DirectionalLight(0xffffff, 0.4); lightFill2.position.set(50, 60, -100); scene.add(lightFill2);
 const lightFill3 = new THREE.DirectionalLight(0xffffff, 0.4); lightFill3.position.set(-50, 60, 100); scene.add(lightFill3);
 
 const materials = await makeMaterials();
 
-// --- MODIFICATION HERE ---
-// Update the propGeometries object
 const propGeometries = {
     'BLOCK': createBlockGeometry(),
     'WALL': createWallGeometry(),
@@ -64,7 +59,6 @@ const propGeometries = {
     'PIPE_STRAIGHT': createPipeStraightGeometry(),
     'PIPE_ELBOW': createPipeElbowGeometry(),
 };
-// --- END MODIFICATION ---
 
 // --- CREATE CONTROLLERS AND WORLD ---
 const input = new InputController(new Joystick(document.getElementById('joystick')));
@@ -102,6 +96,11 @@ function tick() {
     if (input.remove) {
         placement.remove(world);
     }
+    // --- ADD THIS BLOCK ---
+    if (input.rotate) {
+        placement.rotate(world);
+    }
+    // --- END OF BLOCK ---
 
     renderer.render(scene, camera);
 }
