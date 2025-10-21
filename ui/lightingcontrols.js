@@ -19,11 +19,7 @@ export class LightingControls {
             hemiGround: "#" + this.refs.hemisphereLight.groundColor.getHexString(),
             sun: this.refs.directionalLight.intensity,
             sunColor: "#" + this.refs.directionalLight.color.getHexString(),
-            reflectivity: firstMat ? firstMat.envMapIntensity : 1.5,
-            // --- ADDED: Default values for new sliders ---
-            metalness: 1.0,
-            roughness: 1.0
-            // --- END ADDED ---
+            reflectivity: firstMat ? firstMat.envMapIntensity : 1.5
         };
 
         this._createUI();
@@ -72,12 +68,6 @@ export class LightingControls {
         content += createSlider('lc_sun', 'Sun', 0, 3, 0.05, this.settings.sun);
         content += createSlider('lc_reflectivity', 'Reflectivity', 0, 5, 0.1, this.settings.reflectivity);
         
-        // --- ADDED: Metalness and Roughness sliders ---
-        content += '<hr class="lc-divider">';
-        content += createSlider('lc_metalness', 'Metalness', 0, 1, 0.01, this.settings.metalness);
-        content += createSlider('lc_roughness', 'Roughness', 0, 1, 0.01, this.settings.roughness);
-        // --- END ADDED ---
-
         content += '<hr class="lc-divider">';
         content += createColorPicker('lc_hemiSky', 'Hemi Sky', this.settings.hemiSky);
         content += createColorPicker('lc_hemiGround', 'Hemi Ground', this.settings.hemiGround);
@@ -95,10 +85,6 @@ export class LightingControls {
             hemi: this.panel.querySelector('#lc_hemi'),
             sun: this.panel.querySelector('#lc_sun'),
             reflectivity: this.panel.querySelector('#lc_reflectivity'),
-            // --- ADDED ---
-            metalness: this.panel.querySelector('#lc_metalness'),
-            roughness: this.panel.querySelector('#lc_roughness'),
-            // --- END ADDED ---
             hemiSky: this.panel.querySelector('#lc_hemiSky'),
             hemiGround: this.panel.querySelector('#lc_hemiGround'),
             sunColor: this.panel.querySelector('#lc_sunColor'),
@@ -160,20 +146,6 @@ export class LightingControls {
             e.target.nextElementSibling.textContent = val.toFixed(2);
         });
 
-        // --- ADDED: New slider listeners ---
-        this.inputs.metalness.addEventListener('input', e => {
-            const val = parseFloat(e.target.value);
-            updateAllMaterials('metalness', val); // Use helper
-            e.target.nextElementSibling.textContent = val.toFixed(2);
-        });
-
-        this.inputs.roughness.addEventListener('input', e => {
-            const val = parseFloat(e.target.value);
-            updateAllMaterials('roughness', val); // Use helper
-            e.target.nextElementSibling.textContent = val.toFixed(2);
-        });
-        // --- END ADDED ---
-
         // Color Pickers
         this.inputs.hemiSky.addEventListener('input', e => {
             this.refs.hemisphereLight.color.set(e.target.value);
@@ -200,11 +172,7 @@ export class LightingControls {
             hemiGroundColor: this.inputs.hemiGround.value,
             sunIntensity: parseFloat(this.inputs.sun.value),
             sunColor: this.inputs.sunColor.value,
-            envMapIntensity: parseFloat(this.inputs.reflectivity.value),
-            // --- ADDED ---
-            metalness: parseFloat(this.inputs.metalness.value),
-            roughness: parseFloat(this.inputs.roughness.value)
-            // --- END ADDED ---
+            envMapIntensity: parseFloat(this.inputs.reflectivity.value)
         };
         
         navigator.clipboard.writeText(JSON.stringify(settings, null, 2))
@@ -262,14 +230,12 @@ export class LightingControls {
                 text-align: center;
                 font-weight: 600;
             }
-            /* --- ADDED: Divider style --- */
             .lc-divider {
                 border: none;
                 height: 1px;
                 background: rgba(255, 255, 255, 0.1);
                 margin: 4px 0;
             }
-            /* --- END ADDED --- */
             .light-slider-group {
                 display: flex;
                 align-items: center;
