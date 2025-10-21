@@ -15,6 +15,7 @@ import { createGlassPaneGeometry } from './engine/structures/glass.js';
 import { createSlopeGeometry } from './engine/structures/slope.js';
 import { createCylinderGeometry } from './engine/structures/cylinder.js';
 import { createPipeStraightGeometry, createPipeElbowGeometry } from './engine/structures/pipe.js';
+import { createTower20Geometry } from './engine/structures/tower20.js'; // NEW
 
 const canvas = document.getElementById('c');
 let renderer, scene, camera, materials, propGeometries, input, player, placement, world;
@@ -75,6 +76,7 @@ async function initializeApp() {
       CYLINDER: createCylinderGeometry(),
       PIPE_STRAIGHT: createPipeStraightGeometry(),
       PIPE_ELBOW: createPipeElbowGeometry(),
+      TOWER20: createTower20Geometry(), // NEW
     };
 
     window.__LOADER?.setStatus?.('Start world…');
@@ -125,9 +127,7 @@ async function initializeApp() {
 
     window.__LOADER?.setStatus?.('Render…');
 
-    // --- Signal loader ONLY after the first frame is drawn ---
     let firstFrameSignaled = false;
-
     let lastT = performance.now();
     function tick() {
       requestAnimationFrame(tick);
@@ -147,9 +147,7 @@ async function initializeApp() {
 
       if (!firstFrameSignaled) {
         firstFrameSignaled = true;
-        // Either call the API…
         window.__LOADER?.appReady?.();
-        // …and also emit an event for completeness:
         window.dispatchEvent(new CustomEvent('world:first-frame'));
       }
     }
@@ -163,7 +161,7 @@ async function initializeApp() {
 
   } catch (error) {
     console.error("Initialization failed:", error);
-    throw error; // loader shows error UI
+    throw error;
   }
 }
 
