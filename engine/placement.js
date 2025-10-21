@@ -6,7 +6,7 @@ export class PlacementController {
         this.scene = scene;
         this.camera = camera;
         this.propGeometries = propGeometries;
-        this.materials = materials;
+        this.allMaterials = materials; // <-- MODIFICATION: Store all materials
 
         this.raycaster = new THREE.Raycaster();
         this.raycaster.far = 8.0;
@@ -28,7 +28,8 @@ export class PlacementController {
         this.scene.add(this.propHighlight);
     }
     
-    update(world, player, activeItem, input) {
+    // --- MODIFICATION: Added activeMaterial parameter ---
+    update(world, player, activeItem, activeMaterial, input) {
         this.voxelHighlight.visible = false;
         this.propHighlight.visible = false;
         this.previewMesh.visible = false;
@@ -61,6 +62,19 @@ export class PlacementController {
                 this._handleVoxelMode(voxelHit, player, activeItem);
             }
         }
+        
+        // --- MODIFICATION: Update preview material ---
+        // We set the *preview* mesh material here so it updates in real-time
+        if (this.previewMesh.visible) {
+            if (activeItem === 'PANE') {
+                this.previewMesh.material = this.allMaterials.glass;
+            } else {
+                // Use a basic material for the preview so we can see it clearly
+                // Using the real PBR material can be dark without proper lighting
+                // this.previewMesh.material = activeMaterial; 
+                this.previewMesh.material = this.previewMat; // Keep using the green preview
+            }
+        }
     }
     
     _handleSnapMode(activeItem, target) {
@@ -89,17 +103,31 @@ export class PlacementController {
         }
     }
 
-    place(world, activeItem) {
+    // --- MODIFICATION: Added activeMaterial parameter ---
+    place(world, activeItem, activeMaterial) {
         if (!this.currentHit && !this.isSnapping) return;
-        if (this.isSnapping && this.previewMesh.visible) { this._placeProp(world, activeItem); this.isSnapping = false; this.snapTarget = null; return; }
+        if (this.isSnapping && this.previewMesh.visible) { 
+            this._placeProp(world, activeItem, activeMaterial); // Pass material
+            this.isSnapping = false; 
+            this.snapTarget = null; 
+            return; 
+        }
         if (this.currentHit) {
-            if (activeItem === 'VOXEL') { world.setVoxel(this.currentHit.prev.x, this.currentHit.prev.y, this.currentHit.prev.z, BLOCK.METAL, true); }
-            else if (this.propGeometries[activeItem] && this.previewMesh.visible) { this._placeProp(world, activeItem); }
+            if (activeItem === 'VOXEL') { 
+                world.setVoxel(this.currentHit.prev.x, this.currentHit.prev.y, this.currentHit.prev.z, BLOCK.METAL, true); 
+            }
+            else if (this.propGeometries[activeItem] && this.previewMesh.visible) { 
+                this._placeProp(world, activeItem, activeMaterial); // Pass material
+            }
         }
     }
 
-    _placeProp(world, activeItem) {
-        let material = activeItem === 'PANE' ? this.materials.glass : this.materials.metal;
+    // --- MODIFICATION: Added activeMaterial parameter ---
+    _placeProp(world, activeItem, activeMaterial) {
+        // Use the glass material if the item is 'PANE',
+        // otherwise use the material selected in the dropdown.
+        let material = activeItem === 'PANE' ? this.allMaterials.glass : activeMaterial;
+        
         const newProp = new THREE.Mesh(this.propGeometries[activeItem], material);
         newProp.position.copy(this.previewMesh.position); newProp.rotation.copy(this.previewMesh.rotation);
         newProp.castShadow = newProp.receiveShadow = true; newProp.name = activeItem.toLowerCase();
@@ -113,7 +141,6 @@ export class PlacementController {
         else { if (!this.currentHit || !this.currentHit.isVoxel) return; world.setVoxel(this.currentHit.pos.x, this.currentHit.pos.y, this.currentHit.pos.z, BLOCK.AIR, true); }
     }
     
-    // This is the rotate method you asked for
     rotate(world) {
         // Raycast to find the prop the player is looking at
         this.raycaster.setFromCamera({ x: 0, y: 0 }, this.camera); 
@@ -132,7 +159,7 @@ export class PlacementController {
     }
 
     _raycastVoxel(world, origin, dir) {
-        const pos=new THREE.Vector3().copy(origin);const step=new THREE.Vector3(Math.sign(dir.x)||1,Math.sign(dir.y)||1,Math.sign(dir.z)||1);const tDelta=new THREE.Vector3(Math.abs(1/dir.x)||1e9,Math.abs(1/dir.y)||1e9,Math.abs(1/dir.z)||1e9);let voxel=new THREE.Vector3(Math.floor(pos.x),Math.floor(pos.y),Math.floor(pos.z));const bound=new THREE.Vector3(voxel.x+(step.x>0?1:0),voxel.y+(step.y>0?1:0),voxel.z+(step.z>0?1:0));const tMax=new THREE.Vector3(dir.x!==0?(bound.x-pos.x)/dir.x:1e9,dir.y!==0?(bound.y-pos.y)/dir.y:1e9,dir.z!==0?(bound.z-pos.z)/dir.z:1e9);let dist=0;let lastVoxel=voxel.clone();for(let i=0;i<256;i++){if(world.inXZ(voxel.x,voxel.z)){const id=world.getVoxel(voxel.x,voxel.y,voxel.z);if(id!==BLOCK.AIR){const normal=lastVBoxel.clone().sub(voxel);return{pos:voxel.clone(),prev:lastVoxel.clone(),id,normal,distance:dist};}}
+        const pos=new THREE.Vector3().copy(origin);const step=new THREE.Vector3(Math.sign(dir.x)||1,Math.sign(dir.y)||1,Math.sign(dir.z)||1);const tDelta=new THREE.Vector3(Math.abs(1/dir.x)||1e9,Math.abs(1/dir.y)||1e9,Math.abs(1/dir.z)||1e9);let voxel=new THREE.Vector3(Math.floor(pos.x),Math.floor(pos.y),Math.floor(pos.z));const bound=new THREE.Vector3(voxel.x+(step.x>0?1:0),voxel.y+(step.y>0?1:0),voxel.z+(step.z>0?1:0));const tMax=new THREE.Vector3(dir.x!==0?(bound.x-pos.x)/dir.x:1e9,dir.y!==0?(bound.y-pos.y)/dir.y:1e9,dir.z!==0?(bound.z-pos.z)/dir.z:1e9);let dist=0;let lastVoxel=voxel.clone();for(let i=0;i<256;i++){if(world.inXZ(voxel.x,voxel.z)){const id=world.getVoxel(voxel.x,voxel.y,voxel.z);if(id!==BLOCK.AIR){const normal=lastVoxel.clone().sub(voxel);return{pos:voxel.clone(),prev:lastVoxel.clone(),id,normal,distance:dist};}}
         lastVoxel.copy(voxel);if(tMax.x<tMax.y){if(tMax.x<tMax.z){voxel.x+=step.x;dist=tMax.x;tMax.x+=tDelta.x;}else{voxel.z+=step.z;dist=tMax.z;tMax.z+=tDelta.z;}}else{if(tMax.y<tMax.z){voxel.y+=step.y;dist=tMax.y;tMax.y+=tDelta.y;}else{voxel.z+=step.z;dist=tMax.z;tMax.z+=tDelta.z;}}
         if(dist>this.raycaster.far)break;}
         return null;
