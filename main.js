@@ -1,4 +1,4 @@
-console.log("Executing main.js..."); // <-- ADD LOG
+console.log("Executing main.js...");
 
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js';
 import { makeMaterials } from './engine/Materials.js';
@@ -36,7 +36,6 @@ async function initializeApp() {
     console.log("initializeApp() started.");
     try {
         // --- Renderer, Scene, Camera, Lights ---
-        // (Assuming this setup code exists, based on your settings panel)
         renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('c'), antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(window.devicePixelRatio);
@@ -125,7 +124,7 @@ async function initializeApp() {
             const opt = document.createElement('option');
             opt.value = name;
             opt.textContent = name.charAt(0) + name.slice(1).toLowerCase();
-            if (name === 'sand') opt.disabled = true; // Can't place sand
+            if (name === 'sand' || name === 'glass') opt.disabled = true; // Can't place sand/glass directly
             texturePicker.appendChild(opt);
         });
         texturePicker.value = 'metal';
@@ -210,13 +209,21 @@ async function initializeApp() {
             el.addEventListener('input', (e) => {
                 const val = parseFloat(e.target.value);
                 s.obj[s.prop] = val;
-                valEl.textContent = val.toFixed(1);
+                valEl.textContent = val.toFixed(s.id === 'exposure' ? 1 : 0); // Fix formatting
                 updateSettingsOutput();
             });
             // Init
-            el.value = s.obj[s.prop];
-            valEl.textContent = s.obj[s.prop].toFixed(1);
+            let initialVal = s.obj[s.prop];
+            el.value = initialVal;
+            valEl.textContent = initialVal.toFixed(s.id === 'exposure' ? 1 : 0); // Fix formatting
         });
+        
+        // Fix for range sliders that might have fractional initial values
+        document.getElementById('exposureValue').textContent = renderer.toneMappingExposure.toFixed(1);
+        document.getElementById('sunIntensityValue').textContent = sun.intensity.toFixed(1);
+        document.getElementById('hemiIntensityValue').textContent = hemi.intensity.toFixed(1);
+        document.getElementById('ambientIntensityValue').textContent = ambient.intensity.toFixed(1);
+
 
         document.getElementById('btnCopySettings').addEventListener('click', () => {
              navigator.clipboard.writeText(settingsOutput.value).then(() => {
