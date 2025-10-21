@@ -1,16 +1,13 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js';
-import { RoomEnvironment } from 'https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/environments/RoomEnvironment.js';
 import { makeMaterials } from './engine/Materials.js';
 import { VoxelWorld } from './engine/VoxelWorld.js';
 import { Joystick } from './ui/Joystick.js';
-
-// Import the new controllers
 import { InputController } from './engine/inputController.js';
 import { Player } from './engine/player.js';
 import { PlacementController } from './engine/placement.js';
-import { LightingControls } from './ui/lightingcontrols.js'; 
+import { LightingControls } from './ui/lightingcontrols.js';
 
-// Import geometries
+// Geometries
 import { createBlockGeometry } from './engine/structures/block.js';
 import { createWallGeometry } from './engine/structures/wall.js';
 import { createFloorGeometry } from './engine/structures/floor.js';
@@ -21,33 +18,43 @@ import { createPipeStraightGeometry, createPipeElbowGeometry } from './engine/st
 
 // --- INITIALIZATION ---
 const canvas = document.getElementById('c');
-let renderer, scene, camera, materials, propGeometries, input, player, placement, world; // Declare vars
+let renderer, scene, camera, materials, propGeometries, input, player, placement, world;
 
 async function initializeApp() {
   try {
+    // Renderer
     renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
     renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
     renderer.setSize(innerWidth, innerHeight);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-
-    // Tone mapping
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.1; // slightly down to reduce overall “wash”
+    renderer.toneMappingExposure = 1.1;
 
+    // Scene + visible sky
     scene = new THREE.Scene();
     scene.fog = new THREE.Fog(0xa7c4ff, 80, 300);
-    renderer.setClearColor(0x87b4ff, 1.0);   // visible sky color
-    scene.background = new THREE.Color(0x87b4ff); // keep as backdrop only
+    const SKY = 0x87b4ff;
+    renderer.setClearColor(SKY, 1.0);
+    scene.background = new THREE.Color(SKY);
 
-    // ➜ NEUTRAL IBL (prevents blue tint)
+    // --- NEUTRAL IBL (no examples import) ---
     const pmrem = new THREE.PMREMGenerator(renderer);
-    const neutralEnv = pmrem.fromScene(new RoomEnvironment(renderer), 0.5).texture; // soft, neutral reflections
-    scene.environment = neutralEnv;  // <-- reflections now come from neutral room, not blue sky
-    // pmrem.dispose(); // do NOT dispose now; keep env texture alive
+    const envScene = new THREE.Scene();
+    const room = new THREE.Mesh(
+      new THREE.BoxGeometry(10, 10, 10),
+      new THREE.MeshBasicMaterial({ color: 0x8a8f96, side: THREE.BackSide }) // neutral grey
+    );
+    envScene.add(room);
+    const neutralEnv = pmrem.fromScene(envScene).texture;
+    scene.environment = neutralEnv; // neutral reflections (no blue)
+    pmrem.dispose(); // generator can go; texture stays alive
 
-    // Lighting — keep colors neutral and intensities moderate
+    // Camera
+    camera = new THREE.PerspectiveCamera(90, innerWidth / innerHeight, 0.1, 1000);
+
+    // Lighting (neutral white, moderate)
     const hemi = new THREE.HemisphereLight(0xffffff, 0xffffff, 0.6);
     scene.add(hemi);
 
@@ -62,34 +69,30 @@ async function initializeApp() {
     const ambient = new THREE.AmbientLight(0xffffff, 0.2);
     scene.add(ambient);
 
-    // Materials (defaults adjusted to lower envMap intensity)
+    // Materials (lower IBL intensity defaults inside)
     materials = await makeMaterials();
 
-    // Geometries list
+    // Geometries
     propGeometries = {
-      'BLOCK': createBlockGeometry(),
-      'WALL': createWallGeometry(),
-      'PANE': createGlassPaneGeometry(),
-      'FLOOR': createFloorGeometry(),
-      'SLOPE': createSlopeGeometry(),
-      'CYLINDER': createCylinderGeometry(),
-      'PIPE_STRAIGHT': createPipeStraightGeometry(),
-      'PIPE_ELBOW': createPipeElbowGeometry(),
+      BLOCK: createBlockGeometry(),
+      WALL: createWallGeometry(),
+      PANE: createGlassPaneGeometry(),
+      FLOOR: createFloorGeometry(),
+      SLOPE: createSlopeGeometry(),
+      CYLINDER: createCylinderGeometry(),
+      PIPE_STRAIGHT: createPipeStraightGeometry(),
+      PIPE_ELBOW: createPipeElbowGeometry(),
     };
 
     // Controllers + world
     input = new InputController(new Joystick(document.getElementById('joystick')));
-    camera = new THREE.PerspectiveCamera(90, innerWidth/innerHeight, 0.1, 1000);
     player = new Player(scene, camera);
     placement = new PlacementController(scene, camera, propGeometries, materials);
-    world = new VoxelWorld(THREE, materials, { scene, sizeX:100, sizeZ:100, minY:-30, maxY:500 });
+    world = new VoxelWorld(THREE, materials, { scene, sizeX: 100, sizeZ: 100, minY: -30, maxY: 500 });
     world.rebuildAll();
 
-    // Lighting controls UI
-    new LightingControls({
-      renderer, ambientLight: ambient, hemisphereLight: hemi, directionalLight: sun,
-      materials, world
-    });
+    // Lighting UI
+    new LightingControls({ renderer, ambientLight: ambient, hemisphereLight: hemi, directionalLight: sun, materials, world });
 
     // UI state
     let activeItem = 'VOXEL';
@@ -130,14 +133,14 @@ async function initializeApp() {
       const file = event.target.files[0]; if (!file) return;
       const reader = new FileReader();
       reader.onload = (e) => {
-        try { world.deserialize(e.target.result, propGeometries); } 
+        try { world.deserialize(e.target.result, propGeometries); }
         catch { alert("Error loading world file."); }
       };
       reader.readAsText(file);
       event.target.value = null;
     });
 
-    // Main loop
+    // Loop
     let lastT = performance.now();
     function tick() {
       requestAnimationFrame(tick);
@@ -157,6 +160,7 @@ async function initializeApp() {
     }
     tick();
 
+    // Resize
     window.addEventListener('resize', () => {
       renderer.setSize(window.innerWidth, window.innerHeight);
       camera.aspect = window.innerWidth / window.innerHeight;
