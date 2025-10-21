@@ -19,6 +19,7 @@ export class VoxelWorld {
     this.minY = opts.minY;   // -30
     this.maxY = opts.maxY;   // 500
     this.chunkSize = 16;
+    this.props = []; // Keep track of placeable props
 
     this.chunks = new Map(); // key "cx,cy,cz" -> {data:Uint16Array, mesh:Group}
     this.scene = opts.scene;
@@ -31,6 +32,80 @@ export class VoxelWorld {
         this.height[x + z*this.sizeX] = 0;
       }
     }
+    this.rebuildAll();
+  }
+
+  // --- ADD THIS SERIALIZE METHOD ---
+  serialize() {
+    // 1. Serialize Voxels
+    const voxelData = [];
+    for (const [key, chunk] of this.chunks.entries()) {
+      // Only save chunks that have been modified (i.e., not all AIR)
+      if (chunk.data.some(v => v !== BLOCK.AIR)) {
+        voxelData.push({
+          key: key,
+          // Convert Uint16Array to a regular array for JSON
+          data: Array.from(chunk.data)
+        });
+      }
+    }
+
+    // 2. Serialize Props
+    const propData = this.props.map(prop => {
+      return {
+        name: prop.name.toUpperCase(), // e.g., "BLOCK", "PIPE_STRAIGHT"
+        position: prop.position.toArray(),
+        rotation: [prop.rotation.x, prop.rotation.y, prop.rotation.z],
+        // Find the key of the material in the materials object
+        materialKey: Object.keys(this.mat).find(key => this.mat[key] === prop.material)
+      };
+    });
+
+    return JSON.stringify({ voxels: voxelData, props: propData });
+  }
+  
+  // --- ADD THIS DESERIALIZE METHOD ---
+  deserialize(jsonString, geoms) {
+    const data = JSON.parse(jsonString);
+
+    // 1. Clear existing world (voxels and props)
+    for (const chunk of this.chunks.values()) {
+      if (chunk.mesh) {
+        this.scene.remove(chunk.mesh);
+        chunk.mesh.traverse(o => { if (o.geometry) o.geometry.dispose(); });
+      }
+    }
+    this.chunks.clear();
+    
+    for (const prop of this.props) {
+      this.scene.remove(prop);
+      if (prop.geometry) prop.geometry.dispose();
+    }
+    this.props.length = 0;
+
+    // 2. Load Voxels
+    for (const item of data.voxels) {
+      const [cx, cy, cz] = item.key.split(',').map(Number);
+      const chunk = this.getChunk(cx, cy, cz, true);
+      chunk.data.set(item.data);
+    }
+    
+    // 3. Load Props
+    for (const item of data.props) {
+      const geo = geoms[item.name];
+      const mat = this.mat[item.materialKey] || this.mat.metal; // Default to metal
+      if (!geo) continue;
+
+      const newProp = new this.THREE.Mesh(geo, mat);
+      newProp.position.fromArray(item.position);
+      newProp.rotation.fromArray(item.rotation);
+      newProp.castShadow = newProp.receiveShadow = true;
+      newProp.name = item.name.toLowerCase();
+      this.scene.add(newProp);
+      this.props.push(newProp);
+    }
+    
+    // 4. Rebuild the visual mesh for all chunks
     this.rebuildAll();
   }
 
@@ -89,16 +164,35 @@ export class VoxelWorld {
   }
 
   rebuildAll(){
-    const cxMin=0,cxMax=Math.ceil(this.sizeX/this.chunkSize)-1;const czMin=0,czMax=Math.ceil(this.sizeZ/this.chunkSize)-1;const cyMin=this.toChunk(this.minY),cyMax=this.toChunk(0);
-    for(let cx=cxMin;cx<=cxMax;cx++){for(let cz=czMin;cz<=czMax;cz++){for(let cy=cyMin;cy<=cyMax;cy++)this.rebuildChunk(cx,cy,cz);}}
+    // Find all chunks that should exist based on world size and min/max Y
+    const cxMin=0, cxMax=Math.floor((this.sizeX-1)/this.chunkSize);
+    const czMin=0, czMax=Math.floor((this.sizeZ-1)/this.chunkSize);
+    const cyMin=this.toChunk(this.minY), cyMax=this.toChunk(this.maxY);
+    
+    // Rebuild all chunks that have data
+    for(const chunk of this.chunks.values()) {
+        this.rebuildChunk(chunk.cx, chunk.cy, chunk.cz);
+    }
+    // Also explicitly rebuild sand chunks which might not be in the map yet on a fresh load
+    for(let cx=cxMin;cx<=cxMax;cx++){
+        for(let cz=czMin;cz<=czMax;cz++){
+            for(let cy=this.toChunk(this.minY);cy<=0;cy++) {
+                if (!this.chunks.has(this.key(cx,cy,cz))) {
+                   this.rebuildChunk(cx,cy,cz);
+                }
+            }
+        }
+    }
   }
 
   rebuildChunkByKey(k){ const [cx,cy,cz]=k.split(',').map(Number);this.rebuildChunk(cx,cy,cz); }
 
   rebuildChunk(cx,cy,cz){
     const c = this.getChunk(cx,cy,cz,false);
-    if(!c) return;
-    if(c.mesh){ this.scene.remove(c.mesh); c.mesh.traverse(o=>{ if(o.geometry) o.geometry.dispose(); }); }
+    
+    if(c && c.mesh){ this.scene.remove(c.mesh); c.mesh.traverse(o=>{ if(o.geometry) o.geometry.dispose(); }); }
+    
+    // Even if the chunk doesn't exist in our map, it might have sand, so we build it
     const gSand = this._buildGeometryFor(c, BLOCK.SAND, cx,cy,cz);
     const gMetal = this._buildGeometryFor(c, BLOCK.METAL, cx,cy,cz);
 
@@ -111,16 +205,23 @@ export class VoxelWorld {
     };
     mk(gSand, this.mat.sand);
     mk(gMetal, this.mat.metal);
-    group.frustumCulled = true;
-    this.scene.add(group);
-    c.mesh = group;
+    
+    if (group.children.length > 0) {
+      group.frustumCulled = true;
+      this.scene.add(group);
+      if (c) c.mesh = group;
+      // If the chunk didn't exist but we created a mesh for it (e.g. sand), we still need to manage it.
+      else this.getChunk(cx,cy,cz,true).mesh = group;
+    }
   }
 
   _buildGeometryFor(c, matchId, cx,cy,cz){
     const THREE = this.THREE; const positions=[],normals=[],uvs=[],indices=[],uvs2=[]; let idxBase=0;
     const cs=this.chunkSize;
     for(let ly=0;ly<cs;ly++){for(let lz=0;lz<cs;lz++){for(let lx=0;lx<cs;lx++){
-      if(c.data[this.idx(lx,ly,lz)]!==matchId) continue;
+      const blockId = c ? c.data[this.idx(lx,ly,lz)] : this.getVoxel(cx*cs+lx, cy*cs+ly, cz*cs+lz);
+      if(blockId!==matchId) continue;
+      
       const vx=cx*cs+lx,vy=cy*cs+ly,vz=cz*cs+lz;
       for(const d of DIRS){
         const neighbor = this.getVoxel(vx+d.dx,vy+d.dy,vz+d.dz);
