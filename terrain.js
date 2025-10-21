@@ -1,22 +1,30 @@
 // terrain.js
-export function createTerrain(THREE) {
-  // 50x50 units, 50 segments so ~1 unit per quad
-  const size = 50;
-  const segs = 50;
+export function createTerrain(THREE, {
+  size = 50,          // world units wide/deep
+  cell = 1,           // ~1 unit per quad
+  uneven = 0.02,      // bumpiness amount
+  color = 0x7a7a7a    // flat grey
+} = {}) {
+  const segs = Math.max(1, Math.round(size / cell));
   const geo = new THREE.PlaneGeometry(size, size, segs, segs);
-  // make it slightly uneven (small height noise)
+
+  // Add subtle height noise along plane normal (Z before rotation)
   const pos = geo.attributes.position;
   for (let i = 0; i < pos.count; i++) {
-    const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
-    // very subtle bumps
-    const n = (Math.sin(x*0.7) + Math.cos(z*0.6))*0.03 + (Math.random()-0.5)*0.02;
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const z = pos.getZ(i);
+    const n = (Math.sin(x * 0.7) + Math.cos(y * 0.6)) * (uneven * 1.5) + (Math.random() - 0.5) * uneven;
+    // IMPORTANT: displace along +Z before we rotate to XZ-plane
     pos.setXYZ(i, x, y, z + n);
   }
-  geo.rotateX(-Math.PI/2);
+
+  // Lay it flat (XZ) so Y is “up”
+  geo.rotateX(-Math.PI / 2);
   geo.computeVertexNormals();
 
   const mat = new THREE.MeshStandardMaterial({
-    color: 0x7a7a7a,
+    color,
     roughness: 0.85,
     metalness: 0.0
   });
@@ -24,5 +32,14 @@ export function createTerrain(THREE) {
   const mesh = new THREE.Mesh(geo, mat);
   mesh.receiveShadow = true;
   mesh.name = 'terrain';
-  return mesh;
+
+  // Utility: sample ground height via raycast
+  const rc = new THREE.Raycaster();
+  function getHeightAt(x, z) {
+    rc.set(new THREE.Vector3(x, 500, z), new THREE.Vector3(0, -1, 0));
+    const hit = rc.intersectObject(mesh, true)[0];
+    return hit ? hit.point.y : 0;
+  }
+
+  return { mesh, getHeightAt };
 }
