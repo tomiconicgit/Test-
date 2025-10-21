@@ -72,8 +72,8 @@ export class InputController {
             // Look
             const ax2 = this.gamepad.axes[2];
             const ax3 = this.gamepad.axes[3];
-            this.look.dx += Math.abs(ax2) > deadzone ? ax2 * 250 * dt : 0;
-            this.look.dy += Math.abs(ax3) > deadzone ? ax3 * 250 * dt : 0;
+            this.look.dx += Math.abs(ax2) > deadzone ? ax2 * 500 * dt : 0;
+            this.look.dy += Math.abs(ax3) > deadzone ? ax3 * 500 * dt : 0;
 
             // Actions
             if (this.gamepad.buttons[7].pressed && !this._r2Pressed) { this.place = true; }  this._r2Pressed = this.gamepad.buttons[7].pressed;
