@@ -1,7 +1,12 @@
-// main.js
+// main.js — FPVMC bootstrap
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js';
 
+import { createRenderer } from './renderer.js';
 import { createFPSCamera } from './camera.js';
+import { setupLighting } from './lighting.js';
+import { createSky } from './sky.js';
+import { createTerrain } from './terrain.js';
+
 import { createController } from './controller.js';
 import { createTouchControls } from './touchcontrols.js';
 
@@ -9,36 +14,27 @@ import { createMenu } from './menu.js';
 import { createDigTool } from './digtool.js';
 import { createBuildTool } from './buildtool.js';
 
-import { createTerrain } from './terrain.js';
-import { createSky } from './sky.js';
-import { setupLighting } from './lighting.js';
-
 // ---------- Renderer / Scene ----------
 const canvas = document.getElementById('c');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-renderer.setSize(innerWidth, innerHeight);
-renderer.outputColorSpace = THREE.SRGBColorSpace;
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.0;
+const renderer = createRenderer(THREE, canvas);
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x101215);
 scene.fog = new THREE.Fog(0x101215, 60, 220);
 
-// ---------- Camera rig (FOV 60) ----------
+// ---------- Camera rig (FOV 60 via camera.js) ----------
 const { camera, yaw, pitch } = createFPSCamera(THREE);
 scene.add(yaw);
 
 // ---------- World ----------
-const terrain = createTerrain(THREE, { size: 50, cell: 1, uneven: 0.02, color: 0x8b8f97 });
-scene.add(terrain.mesh);
+const terrainMesh = createTerrain(THREE);  // flat 50x50 slight uneven
+scene.add(terrainMesh);
 
+// Optional sky
 const sky = createSky?.(THREE);
 if (sky) scene.add(sky);
 
+// PBR lights
 setupLighting(THREE, scene, renderer);
 
 // Neutral envMap so PBR looks right
@@ -54,44 +50,53 @@ setupLighting(THREE, scene, renderer);
   pmrem.dispose();
 }
 
-// ---------- Controls ----------
-const pad = createController();
-const touch = createTouchControls();
+// ---------- Helpers ----------
+const RC_DOWN = new THREE.Raycaster();
+function sampleTerrainY(x, z) {
+  // Cast straight down from above to find terrain height
+  RC_DOWN.set(new THREE.Vector3(x, 200, z), new THREE.Vector3(0, -1, 0));
+  const hit = RC_DOWN.intersectObject(terrainMesh, true)[0];
+  return hit ? hit.point.y : 0;
+}
 
+// Spawn player at center of the terrain
 const EYE = 1.6;
+yaw.position.set(0, sampleTerrainY(0, 0) + EYE, 0);
+
+// ---------- Input ----------
+const pad   = createController();       // gamepad (Backbone etc.)
+const touch = createTouchControls();    // on-screen joystick + drag look
+
+// Movement constants
 const SPEED_WALK = 5.0;
 const SPEED_FLY  = 7.5;
 
-// Spawn at **center of terrain** at correct height
-yaw.position.set(0, terrain.getHeightAt(0, 0) + EYE, 0);
+// ---------- Tools & Menu ----------
+const digTool = createDigTool(THREE, {
+  scene, camera, terrain: terrainMesh, input: pad
+});
 
-// ---------- Tools ----------
-const digTool   = createDigTool(THREE, { scene, camera, terrain: terrain.mesh, input: pad });
-const buildTool = createBuildTool(THREE, { scene, camera, input: pad });
+const buildTool = createBuildTool(THREE, {
+  scene, camera, input: pad,
+  terrain: terrainMesh,
+  terrainHeightAt: (x, z) => sampleTerrainY(x, z)
+});
 
-// ---------- Menu (hamburger, top-left) ----------
 createMenu({
   onDigTool: () => {
-    // Toggle dig; ensure only one tool active at a time
-    if (digTool.active) { digTool.disable(); return; }
-    buildTool.disable();
-    digTool.enable();
+    if (buildTool.active) buildTool.disable();
+    digTool.active ? digTool.disable() : digTool.enable();
   },
   onBuildTool: () => {
-    if (buildTool.active) { buildTool.disable(); return; }
-    digTool.disable();
-    buildTool.enable();
+    if (digTool.active) digTool.disable();
+    buildTool.active ? buildTool.disable() : buildTool.enable();
   }
 });
 
-// (Optional programmatic toggles if you use events elsewhere)
-document.addEventListener('toggle-dig-tool',   () => (digTool.active ? digTool.disable() : (buildTool.disable(), digTool.enable())));
-document.addEventListener('toggle-build-tool', () => (buildTool.active ? buildTool.disable() : (digTool.disable(), buildTool.enable())));
-
-// ---------- Player Update ----------
+// ---------- Game Loop ----------
 let isFlying = false;
-let lastT = performance.now();
 let firstFrameSignaled = false;
+let lastT = performance.now();
 
 function tick() {
   requestAnimationFrame(tick);
@@ -100,51 +105,55 @@ function tick() {
   const dt = Math.min((now - lastT) / 1000, 0.05);
   lastT = now;
 
-  // Update gamepad
+  // Update inputs
   pad.update(dt);
 
-  // Double-tap A toggles fly
+  // Toggle fly on A double-tap
   if (pad.aDouble) isFlying = !isFlying;
 
-  // ---- Look (pad + touch) ----
+  // ---- Look (gamepad + touch blend) ----
   const lookDX = pad.look.dx + touch.look.dx * 0.5;
   const lookDY = pad.look.dy + touch.look.dy * 0.5;
 
   const SENS = 0.0022; // radians per “pixel”
-  yaw.rotation.y -= lookDX * SENS;
+  yaw.rotation.y   -= lookDX * SENS;
   pitch.rotation.x -= lookDY * SENS;
   pitch.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, pitch.rotation.x));
 
+  // consume deltas
   pad.resetLook();
   touch.resetLook();
 
-  // ---- Movement (prefer pad if active, else touch joystick) ----
-  const usingPad =
+  // ---- Movement (prefer pad when active) ----
+  const usePad =
     Math.abs(pad.move.x) + Math.abs(pad.move.y) > 0.02 ||
     pad.aHold || pad.xHold || pad.l1Pressed || pad.r1Pressed || pad.l2Pressed || pad.r2Pressed;
 
-  const mvX = usingPad ? pad.move.x : touch.move.x; // strafe
-  const mvY = usingPad ? pad.move.y : touch.move.y; // forward
+  const mvX = usePad ? pad.move.x : touch.move.x; // strafe
+  const mvY = usePad ? pad.move.y : touch.move.y; // forward (touch up = forward)
 
-  const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(yaw.quaternion);
-  const right   = new THREE.Vector3(1, 0,  0).applyQuaternion(yaw.quaternion);
-  if (!isFlying) { forward.y = 0; right.y = 0; forward.normalize(); right.normalize(); }
+  const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(yaw.quaternion);
+  const right = new THREE.Vector3(1, 0, 0).applyQuaternion(yaw.quaternion);
+
+  if (!isFlying) { fwd.y = 0; right.y = 0; fwd.normalize(); right.normalize(); }
 
   const speed = isFlying ? SPEED_FLY : SPEED_WALK;
-  yaw.position.addScaledVector(forward, mvY * speed * dt);
-  yaw.position.addScaledVector(right,   mvX * speed * dt);
+  yaw.position.addScaledVector(fwd,  mvY * speed * dt);
+  yaw.position.addScaledVector(right, mvX * speed * dt);
 
+  // Vertical while flying (A hold up, X hold down)
   if (isFlying) {
     if (pad.aHold) yaw.position.y += speed * dt;
     if (pad.xHold) yaw.position.y -= speed * dt;
   } else {
-    const yGround = terrain.getHeightAt(yaw.position.x, yaw.position.z) + EYE;
+    // Follow terrain
+    const yGround = sampleTerrainY(yaw.position.x, yaw.position.z) + EYE;
     yaw.position.y += (yGround - yaw.position.y) * 0.25;
   }
 
   // ---- Tools ----
-  digTool.update(dt);
-  buildTool.update(dt);
+  digTool.update?.(dt);
+  buildTool.update?.(dt);
 
   // ---- Render ----
   renderer.render(scene, camera);
