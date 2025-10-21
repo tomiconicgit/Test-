@@ -62,9 +62,7 @@ html,body { margin:0; height:100%; background:#000; color:var(--fg); font-family
   cursor: pointer;
 }
 .select-wrapper::after {
-  /* --- MODIFICATION HERE --- */
-  content: '▼'; /* Replaced broken character */
-  /* --- END MODIFICATION --- */
+  content: '▼';
   font-size: 12px;
   color: rgba(255,255,255,0.5);
   position: absolute;
@@ -73,6 +71,30 @@ html,body { margin:0; height:100%; background:#000; color:var(--fg); font-family
   transform: translateY(-50%);
   pointer-events: none;
 }
+
+/* --- ADD THIS BLOCK: Scale Button Styles --- */
+#scaleButtons {
+  display: flex;
+  gap: 8px;
+}
+#scaleButtons button {
+  flex: 1; /* Make buttons share space */
+  padding: 10px 5px; /* Smaller padding */
+  font-size: 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.15);
+  background: rgba(20,22,25,.4);
+  backdrop-filter: blur(8px);
+  color: rgba(255,255,255,.5); /* Dimmed color */
+  font-weight: 600;
+  transition: background .2s, color .2s, border-color .2s;
+}
+#scaleButtons button.active { /* Style for the selected button */
+  background: rgba(40,42,45,.6);
+  color: var(--fg); /* Full color */
+  border-color: rgba(255,255,255,.3);
+}
+/* --- END OF BLOCK --- */
 
 /* This is the correct 2x2 grid layout */
 #actionButtons { 
@@ -107,6 +129,5 @@ html,body { margin:0; height:100%; background:#000; color:var(--fg); font-family
 
 
 @media (orientation:portrait) {
-  /* This rule is unused, which is fine */
   #hint::after { content:" • Tip: rotate phone for landscape"; }
 }
