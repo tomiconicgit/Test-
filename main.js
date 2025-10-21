@@ -71,12 +71,16 @@ world.props = []; // Add props array to world for the placement controller to us
 
 // --- UI STATE ---
 let activeItem = 'VOXEL';
-let activeMaterial = materials.metal;
+let activeMaterial = materials.metal; // Default to metal
 document.getElementById('itemPicker').addEventListener('change', e => { activeItem = e.target.value; });
-document.getElementById('texturePicker').addEventListener('change', e => { activeMaterial = materials[e.target.value] || materials.metal; });
+document.getElementById('texturePicker').addEventListener('change', e => { 
+  // This line is already correct. It finds the material in the 'materials' object.
+  activeMaterial = materials[e.target.value] || materials.metal; 
+});
 
 // --- UI ACTIONS ---
-document.getElementById('btnPlace').addEventListener('click', () => placement.place(world, activeItem));
+// --- MODIFICATION: Pass activeMaterial to the placement controller ---
+document.getElementById('btnPlace').addEventListener('click', () => placement.place(world, activeItem, activeMaterial));
 document.getElementById('btnRemove').addEventListener('click', () => placement.remove(world));
 
 // --- MAIN LOOP ---
@@ -89,11 +93,13 @@ function tick() {
     // Update controllers
     input.update(dt);
     player.update(dt, input, world);
-    placement.update(world, player, activeItem, input);
+    // --- MODIFICATION: Pass activeMaterial to the update function ---
+    placement.update(world, player, activeItem, activeMaterial, input);
 
     // Check for actions from input controller
     if (input.place) {
-        placement.place(world, activeItem);
+        // --- MODIFICATION: Pass activeMaterial to the place function ---
+        placement.place(world, activeItem, activeMaterial);
     }
     if (input.remove) {
         placement.remove(world);
