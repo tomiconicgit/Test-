@@ -16,7 +16,6 @@ import { createSlopeGeometry } from './engine/structures/slope.js';
 import { createCylinderGeometry } from './engine/structures/cylinder.js';
 import { createPipeStraightGeometry, createPipeElbowGeometry } from './engine/structures/pipe.js';
 
-// --- INITIALIZATION ---
 const canvas = document.getElementById('c');
 let renderer, scene, camera, materials, propGeometries, input, player, placement, world;
 
@@ -24,7 +23,6 @@ async function initializeApp() {
   try {
     window.__LOADER?.setStatus?.('Init renderer…');
 
-    // Renderer
     renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
     renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
     renderer.setSize(innerWidth, innerHeight);
@@ -34,14 +32,12 @@ async function initializeApp() {
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.1;
 
-    // Scene + visible sky
     scene = new THREE.Scene();
     scene.fog = new THREE.Fog(0xa7c4ff, 80, 300);
     const SKY = 0x87b4ff;
     renderer.setClearColor(SKY, 1.0);
     scene.background = new THREE.Color(SKY);
 
-    // Neutral IBL (no examples import)
     window.__LOADER?.setStatus?.('Build environment…');
     const pmrem = new THREE.PMREMGenerator(renderer);
     const envScene = new THREE.Scene();
@@ -54,13 +50,9 @@ async function initializeApp() {
     scene.environment = neutralEnv;
     pmrem.dispose();
 
-    // Camera
     camera = new THREE.PerspectiveCamera(90, innerWidth / innerHeight, 0.1, 1000);
 
-    // Lighting (neutral white, moderate)
-    const hemi = new THREE.HemisphereLight(0xffffff, 0xffffff, 0.6);
-    scene.add(hemi);
-
+    const hemi = new THREE.HemisphereLight(0xffffff, 0xffffff, 0.6); scene.add(hemi);
     const sun = new THREE.DirectionalLight(0xffffff, 1.2);
     sun.position.set(100, 120, 60);
     sun.castShadow = true;
@@ -68,16 +60,12 @@ async function initializeApp() {
     sun.shadow.camera.left = -80; sun.shadow.camera.right = 80;
     sun.shadow.camera.top = 80;  sun.shadow.camera.bottom = -80;
     scene.add(sun);
+    const ambient = new THREE.AmbientLight(0xffffff, 0.2); scene.add(ambient);
 
-    const ambient = new THREE.AmbientLight(0xffffff, 0.2);
-    scene.add(ambient);
-
-    // Materials
     window.__LOADER?.setStatus?.('Load materials…');
     materials = await makeMaterials();
     window.__LOADER?.done?.();
 
-    // Geometries
     propGeometries = {
       BLOCK: createBlockGeometry(),
       WALL: createWallGeometry(),
@@ -89,7 +77,6 @@ async function initializeApp() {
       PIPE_ELBOW: createPipeElbowGeometry(),
     };
 
-    // Controllers + world
     window.__LOADER?.setStatus?.('Start world…');
     input = new InputController(new Joystick(document.getElementById('joystick')));
     player = new Player(scene, camera);
@@ -97,18 +84,14 @@ async function initializeApp() {
     world = new VoxelWorld(THREE, materials, { scene, sizeX: 100, sizeZ: 100, minY: -30, maxY: 500 });
     world.rebuildAll();
 
-    // Lighting UI
     new LightingControls({ renderer, ambientLight: ambient, hemisphereLight: hemi, directionalLight: sun, materials, world });
 
-    // UI state
     let activeItem = 'VOXEL';
     let activeMaterial = materials.metal;
     let activeScale = 1.0;
 
     document.getElementById('itemPicker').addEventListener('change', e => { activeItem = e.target.value; });
-    document.getElementById('texturePicker').addEventListener('change', e => {
-      activeMaterial = materials[e.target.value] || materials.metal;
-    });
+    document.getElementById('texturePicker').addEventListener('change', e => { activeMaterial = materials[e.target.value] || materials.metal; });
 
     const scaleButtons = document.querySelectorAll('.scaleBtn');
     scaleButtons.forEach(button => {
@@ -119,10 +102,8 @@ async function initializeApp() {
       });
     });
 
-    // Actions
     document.getElementById('btnPlace').addEventListener('click', () => placement.place(world, activeItem, activeMaterial, activeScale));
     document.getElementById('btnRemove').addEventListener('click', () => placement.remove(world));
-
     document.getElementById('btnSave').addEventListener('click', () => {
       try {
         const worldData = world.serialize();
@@ -132,22 +113,21 @@ async function initializeApp() {
         URL.revokeObjectURL(url);
       } catch { alert("Could not save world data."); }
     });
-
     const loadFileInput = document.getElementById('loadFile');
     document.getElementById('btnLoad').addEventListener('click', () => loadFileInput.click());
     loadFileInput.addEventListener('change', (event) => {
       const file = event.target.files[0]; if (!file) return;
       const reader = new FileReader();
-      reader.onload = (e) => {
-        try { world.deserialize(e.target.result, propGeometries); }
-        catch { alert("Error loading world file."); }
-      };
+      reader.onload = (e) => { try { world.deserialize(e.target.result, propGeometries); } catch { alert("Error loading world file."); } };
       reader.readAsText(file);
       event.target.value = null;
     });
 
-    // Loop
     window.__LOADER?.setStatus?.('Render…');
+
+    // --- Signal loader ONLY after the first frame is drawn ---
+    let firstFrameSignaled = false;
+
     let lastT = performance.now();
     function tick() {
       requestAnimationFrame(tick);
@@ -164,10 +144,17 @@ async function initializeApp() {
       if (input.rotate) placement.rotate(world);
 
       renderer.render(scene, camera);
+
+      if (!firstFrameSignaled) {
+        firstFrameSignaled = true;
+        // Either call the API…
+        window.__LOADER?.appReady?.();
+        // …and also emit an event for completeness:
+        window.dispatchEvent(new CustomEvent('world:first-frame'));
+      }
     }
     tick();
 
-    // Resize
     window.addEventListener('resize', () => {
       renderer.setSize(window.innerWidth, window.innerHeight);
       camera.aspect = window.innerWidth / window.innerHeight;
@@ -176,8 +163,7 @@ async function initializeApp() {
 
   } catch (error) {
     console.error("Initialization failed:", error);
-    // loader will catch this and show the error UI
-    throw error;
+    throw error; // loader shows error UI
   }
 }
 
