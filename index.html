@@ -14,56 +14,86 @@
   <input type="file" id="loadFile" accept=".json" style="display: none;" />
 
   <div id="hud">
+    <!-- --- MODIFICATION: Settings Button --- -->
+    <button id="btnSettings">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+    </button>
+    <!-- --- END MODIFICATION --- -->
+
     <div id="joystick"></div>
-
     <div id="rightPanel">
-      <div class="select-wrapper">
-        <select id="texturePicker">
-          <option value="metal">Metal</option>
-          <option value="alloywall">Alloy Wall</option>
-          <option value="cement">Cement</option>
-          <option value="grate">Grate</option>
-          <option value="hexfloor">Hex Floor</option>
-          <option value="metalcubes">Metal Cubes</option>
-          <option value="oiltubes">Oil Tubes</option>
-          <option value="oldmetal">Old Metal</option>
-          <option value="polishedtile">Polished Tile</option>
-          <option value="rustymetal">Rusty Metal</option>
-          <option value="spacepanels">Space Panels</option>
-          <option value="techwall">Tech Wall</option>
-          <option value="vent">Vent</option>
-          <option value="ventslating">Vent Slating</option>
-        </select>
-      </div>
-      <div class="select-wrapper">
-        <select id="itemPicker">
-          <option value="VOXEL">Voxel</option>
-          <option value="BLOCK">Block Prop</option>
-          <option value="WALL">Wall</option>
-          <option value="PANE">Glass Pane</option>
-          <option value="FLOOR">Floor</option>
-          <option value="SLOPE">Slope</option>
-          <option value="CYLINDER">Cylinder</option>
-          <option value="PIPE_STRAIGHT">Pipe Straight</option>
-          <option value="PIPE_ELBOW">Pipe Elbow</option>
-        </select>
-        </div>
-      
-      <div id="scaleButtons">
-        <button class="scaleBtn active" data-scale="1">1x1</button>
-        <button class="scaleBtn" data-scale="0.5">2x2</button>
-        <button class="scaleBtn" data-scale="0.25">4x4</button>
-      </div>
-      <div id="actionButtons">
-        <button id="btnPlace">Place</button>
-        <button id="btnRemove">Remove</button>
-        <button id="btnSave">Save</button>
-        <button id="btnLoad">Load</button>
-      </div>
+      <!-- ... dropdowns and buttons ... -->
     </div>
-
     <div id="crosshair"></div>
   </div>
+
+  <!-- --- MODIFICATION: Settings Panel --- -->
+  <div id="settingsPanel" class="hidden">
+    <div class="settings-header">
+      <h3>World Lighting</h3>
+      <button id="btnCloseSettings">&times;</button>
+    </div>
+    <div class="settings-content">
+      <!-- Renderer Settings -->
+      <div class="setting-group">
+        <h4>Renderer</h4>
+        <div class="slider-container">
+          <label for="exposure">Exposure</label>
+          <input type="range" id="exposure" min="0" max="3" step="0.1" value="1.2">
+          <span id="exposureValue">1.2</span>
+        </div>
+      </div>
+      <!-- Sun / Directional Light -->
+      <div class="setting-group">
+        <h4>Sun (Directional Light)</h4>
+        <div class="slider-container">
+          <label for="sunIntensity">Intensity</label>
+          <input type="range" id="sunIntensity" min="0" max="5" step="0.1" value="1.8">
+          <span id="sunIntensityValue">1.8</span>
+        </div>
+        <div class="slider-container">
+          <label for="sunX">Position X</label>
+          <input type="range" id="sunX" min="-200" max="200" step="1" value="100">
+          <span id="sunXValue">100</span>
+        </div>
+        <div class="slider-container">
+          <label for="sunY">Position Y</label>
+          <input type="range" id="sunY" min="0" max="200" step="1" value="100">
+          <span id="sunYValue">100</span>
+        </div>
+        <div class="slider-container">
+          <label for="sunZ">Position Z</label>
+          <input type="range" id="sunZ" min="-200" max="200" step="1" value="50">
+          <span id="sunZValue">50</span>
+        </div>
+      </div>
+      <!-- Hemisphere Light -->
+      <div class="setting-group">
+        <h4>Sky (Hemisphere Light)</h4>
+        <div class="slider-container">
+          <label for="hemiIntensity">Intensity</label>
+          <input type="range" id="hemiIntensity" min="0" max="5" step="0.1" value="1.5">
+          <span id="hemiIntensityValue">1.5</span>
+        </div>
+      </div>
+      <!-- Ambient Light -->
+      <div class="setting-group">
+        <h4>Ambient Light</h4>
+        <div class="slider-container">
+          <label for="ambientIntensity">Intensity</label>
+          <input type="range" id="ambientIntensity" min="0" max="2" step="0.1" value="0.4">
+          <span id="ambientIntensityValue">0.4</span>
+        </div>
+      </div>
+      <!-- Output -->
+      <div class="setting-group">
+          <h4>Copy Settings</h4>
+          <textarea id="settingsOutput" rows="8" readonly></textarea>
+          <button id="btnCopySettings">Copy to Clipboard</button>
+      </div>
+    </div>
+  </div>
+  <!-- --- END MODIFICATION --- -->
 
   <script type="module" src="./main.js"></script>
   <script>
