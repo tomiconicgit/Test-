@@ -80,6 +80,9 @@ async function initializeApp() {
         player = new Player(scene, camera);
         placement = new PlacementController(scene, camera, propGeometries, materials);
         world = new VoxelWorld(THREE, materials, { scene, sizeX:100, sizeZ:100, minY:-30, maxY:500 });
+        
+        world.rebuildAll(); // <-- THIS IS THE FIX
+        
         console.log("World and controllers initialized.");
 
         // --- UI STATE ---
@@ -214,4 +217,3 @@ async function initializeApp() {
 
 // Start the app initialization
 initializeApp();
-
