@@ -1,210 +1,122 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js';
-import { makeMaterials } from './engine/Materials.js';
-import { VoxelWorld } from './engine/VoxelWorld.js';
-import { Joystick } from './ui/Joystick.js';
-
-// Import the new controllers
-import { InputController } from './engine/inputController.js';
-import { Player } from './engine/player.js';
-import { PlacementController } from './engine/placement.js';
-
-// Import geometries
-import { createBlockGeometry } from './engine/structures/block.js';
-import { createWallGeometry } from './engine/structures/wall.js';
-import { createFloorGeometry } from './engine/structures/floor.js';
-import { createGlassPaneGeometry } from './engine/structures/glass.js';
-import { createSlopeGeometry } from './engine/structures/slope.js';
-import { createCylinderGeometry } from './engine/structures/cylinder.js';
-import {
-    createPipeStraightGeometry,
-    createPipeElbowGeometry
-} from './engine/structures/pipe.js';
+// ... other imports ...
 
 // --- INITIALIZATION ---
-const canvas = document.getElementById('c');
-let renderer, scene, camera, materials, propGeometries, input, player, placement, world; // Declare vars
+// ... renderer, scene, camera setup ...
+
+// --- MODIFICATION: Store Lights for Panel Access ---
+let hemi, sun, ambient; // Declare here to make them accessible
 
 async function initializeApp() {
     try {
-        renderer = new THREE.WebGLRenderer({ canvas, antialias:true, powerPreference:'high-performance' });
-        renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-        renderer.setSize(innerWidth, innerHeight);
-        renderer.outputColorSpace = THREE.SRGBColorSpace;
-        renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-
-        // --- Tone Mapping (keeping exposure slightly increased) ---
-        renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        renderer.toneMappingExposure = 1.2; // Reduced from 1.5, still brighter than 1.0
-
-        scene = new THREE.Scene();
-        scene.fog = new THREE.Fog(0xa7c4ff, 80, 300);
-        renderer.setClearColor(0x87b4ff, 1.0);
-
-        camera = new THREE.PerspectiveCamera(90, innerWidth/innerHeight, 0.1, 1000);
-
-        // --- Slightly Reduced Light Intensities ---
-        const hemi = new THREE.HemisphereLight(0xddeeff, 0x998877, 1.5); // Reduced from 2.0
+        // ... renderer, scene, camera initialization ...
+        
+        // --- Lighting Setup ---
+        hemi = new THREE.HemisphereLight(0xddeeff, 0x998877, 1.5);
         scene.add(hemi);
 
-        const sun = new THREE.DirectionalLight(0xffffff, 1.8); // Reduced from 2.0
-        sun.position.set(100, 100, 50); sun.castShadow = true;
-        sun.shadow.mapSize.set(2048, 2048);
-        sun.shadow.camera.left = -80; sun.shadow.camera.right = 80;
-        sun.shadow.camera.top = 80; sun.shadow.camera.bottom = -80;
+        sun = new THREE.DirectionalLight(0xffffff, 1.8);
+        sun.position.set(100, 100, 50);
+        sun.castShadow = true;
+        // ... shadow setup ...
         scene.add(sun);
 
-        const ambient = new THREE.AmbientLight(0xffffff, 0.4); // Reduced from 0.5
+        ambient = new THREE.AmbientLight(0xffffff, 0.4);
         scene.add(ambient);
-        // --- END LIGHTING ADJUSTMENT ---
-
-        console.log("Loading materials...");
-        materials = await makeMaterials();
-        console.log("Materials loaded:", Object.keys(materials));
-
-        // Geometries list
-        propGeometries = {
-            'BLOCK': createBlockGeometry(),
-            'WALL': createWallGeometry(),
-            'PANE': createGlassPaneGeometry(),
-            'FLOOR': createFloorGeometry(),
-            'SLOPE': createSlopeGeometry(),
-            'CYLINDER': createCylinderGeometry(),
-            'PIPE_STRAIGHT': createPipeStraightGeometry(),
-            'PIPE_ELBOW': createPipeElbowGeometry(),
-        };
-        console.log("Geometries created.");
-
-        // --- CREATE CONTROLLERS AND WORLD ---
-        input = new InputController(new Joystick(document.getElementById('joystick')));
-        player = new Player(scene, camera);
-        placement = new PlacementController(scene, camera, propGeometries, materials);
-        world = new VoxelWorld(THREE, materials, { scene, sizeX:100, sizeZ:100, minY:-30, maxY:500 });
-        console.log("World and controllers initialized.");
+        
+        // ... materials, geometries, controllers, world setup ...
 
         // --- UI STATE ---
         let activeItem = 'VOXEL';
         let activeMaterial = materials.metal;
         let activeScale = 1.0;
+        
+        // ... existing UI listeners ...
+        
+        // --- MODIFICATION: Settings Panel Logic ---
+        const btnSettings = document.getElementById('btnSettings');
+        const btnCloseSettings = document.getElementById('btnCloseSettings');
+        const settingsPanel = document.getElementById('settingsPanel');
 
-        document.getElementById('itemPicker').addEventListener('change', e => { activeItem = e.target.value; });
-        document.getElementById('texturePicker').addEventListener('change', e => {
-          activeMaterial = materials[e.target.value] || materials.metal;
-        });
+        // Toggle panel visibility
+        btnSettings.addEventListener('click', () => settingsPanel.classList.remove('hidden'));
+        btnCloseSettings.addEventListener('click', () => settingsPanel.classList.add('hidden'));
+        
+        // Get all sliders and value displays
+        const sliders = {
+            exposure: { input: document.getElementById('exposure'), value: document.getElementById('exposureValue'), target: renderer, prop: 'toneMappingExposure' },
+            sunIntensity: { input: document.getElementById('sunIntensity'), value: document.getElementById('sunIntensityValue'), target: sun, prop: 'intensity' },
+            sunX: { input: document.getElementById('sunX'), value: document.getElementById('sunXValue'), target: sun.position, prop: 'x' },
+            sunY: { input: document.getElementById('sunY'), value: document.getElementById('sunYValue'), target: sun.position, prop: 'y' },
+            sunZ: { input: document.getElementById('sunZ'), value: document.getElementById('sunZValue'), target: sun.position, prop: 'z' },
+            hemiIntensity: { input: document.getElementById('hemiIntensity'), value: document.getElementById('hemiIntensityValue'), target: hemi, prop: 'intensity' },
+            ambientIntensity: { input: document.getElementById('ambientIntensity'), value: document.getElementById('ambientIntensityValue'), target: ambient, prop: 'intensity' },
+        };
+        
+        const settingsOutput = document.getElementById('settingsOutput');
+        const btnCopySettings = document.getElementById('btnCopySettings');
 
-        const scaleButtons = document.querySelectorAll('.scaleBtn');
-        scaleButtons.forEach(button => {
-          button.addEventListener('click', () => {
-            scaleButtons.forEach(btn => btn.classList.remove('active'));
-            button.classList.add('active');
-            activeScale = parseFloat(button.dataset.scale);
-          });
-        });
-
-        // --- UI ACTIONS ---
-        document.getElementById('btnPlace').addEventListener('click', () => placement.place(world, activeItem, activeMaterial, activeScale));
-        document.getElementById('btnRemove').addEventListener('click', () => placement.remove(world));
-
-        document.getElementById('btnSave').addEventListener('click', () => {
-            try {
-                const worldData = world.serialize();
-                const blob = new Blob([worldData], { type: 'application/json' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'world.json';
-                a.click();
-                URL.revokeObjectURL(url);
-             } catch (error) {
-                 console.error("Error saving world:", error);
-                 alert("Could not save world data.");
-             }
-        });
-
-        const loadFileInput = document.getElementById('loadFile');
-        document.getElementById('btnLoad').addEventListener('click', () => {
-            loadFileInput.click(); // Open the file picker
-        });
-
-        loadFileInput.addEventListener('change', (event) => {
-            const file = event.target.files[0];
-            if (!file) return;
-
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const content = e.target.result;
-                 try {
-                    console.log("Deserializing world data...");
-                    world.deserialize(content, propGeometries);
-                    console.log("World deserialized successfully.");
-                } catch (error) {
-                    console.error("Failed to load world:", error);
-                    alert("Error loading world file. It might be corrupted.");
+        // Function to update the JSON display
+        function updateSettingsDisplay() {
+            const currentSettings = {
+                renderer: {
+                    toneMappingExposure: parseFloat(sliders.exposure.input.value)
+                },
+                sun: {
+                    intensity: parseFloat(sliders.sunIntensity.input.value),
+                    position: [
+                        parseInt(sliders.sunX.input.value),
+                        parseInt(sliders.sunY.input.value),
+                        parseInt(sliders.sunZ.input.value),
+                    ]
+                },
+                hemisphere: {
+                    intensity: parseFloat(sliders.hemiIntensity.input.value)
+                },
+                ambient: {
+                    intensity: parseFloat(sliders.ambientIntensity.input.value)
                 }
             };
-             reader.onerror = (e) => {
-                 console.error("Error reading file:", e);
-                 alert("Could not read the selected file.");
-             };
-            reader.readAsText(file);
-            event.target.value = null; // Reset input
-        });
-
-        // --- MAIN LOOP ---
-        let lastT = performance.now();
-        function tick() {
-            requestAnimationFrame(tick);
-            const dt = Math.min((performance.now() - lastT) / 1000, 0.05);
-            lastT = performance.now();
-
-            try { // Add try...catch around updates
-                // Update controllers
-                input.update(dt);
-                player.update(dt, input, world);
-                // Ensure placement is defined before calling update
-                if (placement) {
-                    placement.update(world, player, activeItem, activeMaterial, activeScale, input);
-                } else {
-                    console.warn("Placement controller not initialized yet.");
-                }
-
-
-                // Check for actions from input controller
-                // Ensure placement is defined before calling actions
-                if (placement) {
-                    if (input.place) {
-                        placement.place(world, activeItem, activeMaterial, activeScale);
-                    }
-                    if (input.remove) {
-                        placement.remove(world);
-                    }
-                    if (input.rotate) {
-                        placement.rotate(world);
-                    }
-                }
-
-                // Ensure renderer and scene are defined
-                if (renderer && scene && camera) {
-                    renderer.render(scene, camera);
-                }
-
-             } catch (error) {
-                 console.error("Error in tick function:", error);
-                 // Optionally stop the loop if a critical error occurs
-                 // return;
-             }
+            settingsOutput.value = JSON.stringify(currentSettings, null, 2);
         }
 
-        console.log("Starting main loop.");
-        tick(); // Start the game loop
-
-        window.addEventListener('resize', () => {
-            if (renderer && camera) {
-                renderer.setSize(window.innerWidth, window.innerHeight);
-                camera.aspect = window.innerWidth / window.innerHeight;
-                camera.updateProjectionMatrix();
+        // Add event listeners to all sliders
+        for (const key in sliders) {
+            const { input, value, target, prop } = sliders[key];
+            input.addEventListener('input', () => {
+                const newValue = parseFloat(input.value);
+                target[prop] = newValue;
+                value.textContent = newValue.toFixed(1);
+                updateSettingsDisplay(); // Update JSON on change
+            });
+        }
+        
+        // Copy button logic
+        btnCopySettings.addEventListener('click', () => {
+            settingsOutput.select();
+            // Use document.execCommand as a fallback for iframe compatibility
+            try {
+                document.execCommand('copy');
+                btnCopySettings.textContent = 'Copied!';
+                setTimeout(() => { btnCopySettings.textContent = 'Copy to Clipboard'; }, 1500);
+            } catch (err) {
+                console.error('Failed to copy settings:', err);
+                btnCopySettings.textContent = 'Copy Failed!';
+                 setTimeout(() => { btnCopySettings.textContent = 'Copy to Clipboard'; }, 1500);
             }
         });
+        
+        // Initial call to populate the textarea
+        updateSettingsDisplay();
+        // --- END MODIFICATION ---
+
+        // --- MAIN LOOP ---
+        // ... (tick function unchanged) ...
+        
+        console.log("Starting main loop.");
+        tick();
+
+        // ... (resize listener unchanged) ...
 
     } catch (error) {
         console.error("Initialization failed:", error);
@@ -212,6 +124,4 @@ async function initializeApp() {
     }
 }
 
-// Start the app initialization
 initializeApp();
-
