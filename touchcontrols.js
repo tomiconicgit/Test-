@@ -84,14 +84,13 @@ export function createTouchControls() {
     knob.style.left = `${center.x + nx - KNOB/2}px`;
     knob.style.top  = `${center.y + ny - KNOB/2}px`;
 
-    // Movement: left/right = strafe; up = forward (negative z in your loop)
-    state.move.x = nx / maxR;  // [-1..1]
-    state.move.y = ny / maxR;  // [-1..1] (positive = down)
+    // Movement: strafe = x; **UP should be forward** => invert Y
+    state.move.x =  nx / maxR;   // [-1..1]
+    state.move.y = -ny / maxR;   // invert so up = +forward
   }
 
   // --- Touch look: anywhere that's NOT the joystick ---
   window.addEventListener('pointerdown', (e) => {
-    // ignore joystick area & buttons
     if (e.target.closest('#touch-joystick') || e.target.closest('.hud-btn')) return;
     if (joyId && e.pointerId === joyId) return;
     if (state._lookId !== null) return;
@@ -113,7 +112,6 @@ export function createTouchControls() {
     state._lookId = null;
   });
 
-  // consumer should call after applying look
   state.resetLook = () => { state.look.dx = 0; state.look.dy = 0; };
 
   return state;
