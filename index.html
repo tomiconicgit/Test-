@@ -14,105 +14,57 @@
   <input type="file" id="loadFile" accept=".json" style="display: none;" />
 
   <div id="hud">
-    <button id="btnSettings">
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-    </button>
     <div id="joystick"></div>
-    
+
     <div id="rightPanel">
       <div class="select-wrapper">
-        <select id="itemPicker"></select>
+        <select id="texturePicker">
+          <option value="metal">Metal</option>
+          <option value="alloywall">Alloy Wall</option>
+          <option value="cement">Cement</option>
+          <option value="grate">Grate</option>
+          <option value="hexfloor">Hex Floor</option>
+          <option value="metalcubes">Metal Cubes</option>
+          <option value="oiltubes">Oil Tubes</option>
+          <option value="oldmetal">Old Metal</option>
+          <option value="polishedtile">Polished Tile</option>
+          <option value="rustymetal">Rusty Metal</option>
+          <option value="spacepanels">Space Panels</option>
+          <option value="techwall">Tech Wall</option>
+          <option value="vent">Vent</option>
+          <option value="ventslating">Vent Slating</option>
+        </select>
       </div>
-      
       <div class="select-wrapper">
-        <select id="texturePicker"></select>
-      </div>
-    
+        <select id="itemPicker">
+          <option value="VOXEL">Voxel</option>
+          <option value="BLOCK">Block Prop</option>
+          <option value="WALL">Wall</option>
+          <option value="PANE">Glass Pane</option>
+          <option value="FLOOR">Floor</option>
+          <option value="SLOPE">Slope</option>
+          <option value="CYLINDER">Cylinder</option>
+          <option value="PIPE_STRAIGHT">Pipe Straight</option>
+          <option value="PIPE_ELBOW">Pipe Elbow</option>
+        </select>
+        </div>
+      
       <div id="scaleButtons">
-        <button data-scale="0.25">0.25x</button>
-        <button data-scale="0.5">0.5x</button>
-        <button data-scale="1.0" class="active">1x</button>
-        <button data-scale="2.0">2x</button>
+        <button class="scaleBtn active" data-scale="1">1x1</button>
+        <button class="scaleBtn" data-scale="0.5">2x2</button>
+        <button class="scaleBtn" data-scale="0.25">4x4</button>
       </div>
-    
       <div id="actionButtons">
-        <button id="btnSave">
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
-        </button>
-        <button id="btnLoad">
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
-        </button>
-        <button id="btnRemove">
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
-        </button>
-        <button id="btnPlace">
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-        </button>
+        <button id="btnPlace">Place</button>
+        <button id="btnRemove">Remove</button>
+        <button id="btnSave">Save</button>
+        <button id="btnLoad">Load</button>
       </div>
     </div>
+
     <div id="crosshair"></div>
   </div>
 
-  <div id="settingsPanel" class="hidden">
-    <div class="settings-header">
-      <h3>World Lighting</h3>
-      <button id="btnCloseSettings">&times;</button>
-    </div>
-    <div class="settings-content">
-      <div class="setting-group">
-        <h4>Renderer</h4>
-        <div class="slider-container">
-          <label for="exposure">Exposure</label>
-          <input type="range" id="exposure" min="0" max="3" step="0.1" value="1.2">
-          <span id="exposureValue">1.2</span>
-        </div>
-      </div>
-      <div class="setting-group">
-        <h4>Sun (Directional Light)</h4>
-        <div class="slider-container">
-          <label for="sunIntensity">Intensity</label>
-          <input type="range" id="sunIntensity" min="0" max="5" step="0.1" value="1.8">
-          <span id="sunIntensityValue">1.8</span>
-        </div>
-        <div class="slider-container">
-          <label for="sunX">Position X</label>
-          <input type="range" id="sunX" min="-200" max="200" step="1" value="100">
-          <span id="sunXValue">100</span>
-        </div>
-        <div class="slider-container">
-          <label for="sunY">Position Y</label>
-          <input type="range" id="sunY" min="0" max="200" step="1" value="100">
-          <span id="sunYValue">100</span>
-        </div>
-        <div class="slider-container">
-          <label for="sunZ">Position Z</label>
-          <input type="range" id="sunZ" min="-200" max="200" step="1" value="50">
-          <span id="sunZValue">50</span>
-        </div>
-      </div>
-      <div class="setting-group">
-        <h4>Sky (Hemisphere Light)</h4>
-        <div class="slider-container">
-          <label for="hemiIntensity">Intensity</label>
-          <input type="range" id="hemiIntensity" min="0" max="5" step="0.1" value="1.5">
-          <span id="hemiIntensityValue">1.5</span>
-        </div>
-      </div>
-      <div class="setting-group">
-        <h4>Ambient Light</h4>
-        <div class="slider-container">
-          <label for="ambientIntensity">Intensity</label>
-          <input type="range" id="ambientIntensity" min="0" max="2" step="0.1" value="0.4">
-          <span id="ambientIntensityValue">0.4</span>
-        </div>
-      </div>
-      <div class="setting-group">
-          <h4>Copy Settings</h4>
-          <textarea id="settingsOutput" rows="8" readonly></textarea>
-          <button id="btnCopySettings">Copy to Clipboard</button>
-      </div>
-    </div>
-  </div>
   <script type="module" src="./main.js"></script>
   <script>
     if ('serviceWorker' in navigator) {
