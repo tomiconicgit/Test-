@@ -1,11 +1,9 @@
-// buildtool.js — assets picker + ghost preview + place/remove/rotate (Ramp)
-// Controls: R2 place, L2 remove, L1 stand up (vertical/horizontal), R1 yaw +45°
-// (Fly and other inputs handled by your controller/camera loop)
+// buildtool.js — Ramp placement + bottom-right HUD buttons for touch/mouse
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js';
 import { createRampGeometry } from './structures/ramp.js';
 
 export function createBuildTool(THREE_NS, { scene, camera, input }) {
-  const EPS = 0.0005; // tiny lift to avoid z-fighting with terrain
+  const EPS = 0.0005;
 
   const tool = {
     active:false,
@@ -17,7 +15,10 @@ export function createBuildTool(THREE_NS, { scene, camera, input }) {
     assetGeos:{},
     placed:[],
     standUp:false,
-    yawDeg:0
+    yawDeg:0,
+
+    // HUD buttons
+    hud:null, btnPlace:null, btnRemove:null, btnFlip:null, btnRotate:null
   };
 
   // ---------- UI ----------
@@ -45,7 +46,18 @@ export function createBuildTool(THREE_NS, { scene, camera, input }) {
     panel.style.display = 'none';
     panel.innerHTML = `<div class="entry" data-type="RAMP">Ramp</div>`;
 
-    document.body.append(close, assetsBtn, panel);
+    // HUD (bottom-right)
+    const hud = document.createElement('div');
+    hud.id = 'build-hud';
+    hud.style.display = 'none';
+    hud.innerHTML = `
+      <button class="hud-btn" id="bt-place">Place</button>
+      <button class="hud-btn" id="bt-remove">Remove</button>
+      <button class="hud-btn" id="bt-flip">Flip V/H</button>
+      <button class="hud-btn" id="bt-rot">Rotate 45°</button>
+    `;
+
+    document.body.append(close, assetsBtn, panel, hud);
 
     const css = document.createElement('style');
     css.textContent = `
@@ -71,6 +83,18 @@ export function createBuildTool(THREE_NS, { scene, camera, input }) {
         background:rgba(35,37,41,.9);color:#eaeaea;font-weight:600;cursor:pointer;
       }
       #build-panel .entry:hover{ background:rgba(60,62,66,.9); }
+
+      #build-hud{
+        position:fixed; right:16px; bottom:16px; z-index:1000;
+        display:grid; grid-template-columns:1fr 1fr; gap:8px; width:220px;
+      }
+      .hud-btn{
+        padding:12px 10px; border-radius:10px; border:1px solid rgba(255,255,255,.2);
+        background:rgba(20,22,25,.65); color:#eaeaea; font-weight:700;
+        backdrop-filter: blur(8px);
+        touch-action: manipulation;
+      }
+      .hud-btn:active{ transform: translateY(1px); }
     `;
     document.head.appendChild(css);
 
@@ -84,9 +108,22 @@ export function createBuildTool(THREE_NS, { scene, camera, input }) {
       panel.style.display = 'none';
     });
 
+    // HUD events
+    hud.querySelector('#bt-place').addEventListener('click', () => placeCurrent());
+    hud.querySelector('#bt-remove').addEventListener('click', () => {
+      const rc = new THREE.Raycaster(); rc.setFromCamera({x:0,y:0}, camera); tryRemoveAtRay(rc);
+    });
+    hud.querySelector('#bt-flip').addEventListener('click', () => { tool.standUp = !tool.standUp; });
+    hud.querySelector('#bt-rot').addEventListener('click', () => { tool.yawDeg = (tool.yawDeg + 45) % 360; });
+
     tool.closeBtn = close;
     tool.assetsBtn = assetsBtn;
     tool.assetsPanel = panel;
+    tool.hud = hud;
+    tool.btnPlace = hud.querySelector('#bt-place');
+    tool.btnRemove = hud.querySelector('#bt-remove');
+    tool.btnFlip = hud.querySelector('#bt-flip');
+    tool.btnRotate = hud.querySelector('#bt-rot');
   }
 
   function setActiveAsset(type) {
@@ -124,6 +161,7 @@ export function createBuildTool(THREE_NS, { scene, camera, input }) {
     ensureGhost();
     tool.closeBtn.style.display = 'grid';
     tool.assetsBtn.style.display = 'grid';
+    tool.hud.style.display = 'grid';
   };
 
   tool.disable = () => {
@@ -132,16 +170,17 @@ export function createBuildTool(THREE_NS, { scene, camera, input }) {
     if (tool.closeBtn) tool.closeBtn.style.display = 'none';
     if (tool.assetsBtn) tool.assetsBtn.style.display = 'none';
     if (tool.assetsPanel) tool.assetsPanel.style.display = 'none';
+    if (tool.hud) tool.hud.style.display = 'none';
   };
 
   tool.update = (dt) => {
     if (!tool.active) return;
 
-    // rotate / stand up
+    // controller buttons still work
     if (input.l1Pressed) tool.standUp = !tool.standUp;
     if (input.r1Pressed) tool.yawDeg = (tool.yawDeg + 45) % 360;
 
-    // raycast for placement target (ignore ghost)
+    // raycast for placement target
     const rc = new THREE.Raycaster();
     rc.setFromCamera({x:0, y:0}, camera);
     const hits = rc.intersectObjects(scene.children, true);
@@ -149,7 +188,7 @@ export function createBuildTool(THREE_NS, { scene, camera, input }) {
     if (hit) {
       const gx = Math.round(hit.point.x);
       const gz = Math.round(hit.point.z);
-      const gy = hit.point.y + EPS; // tiny lift to avoid z-fighting
+      const gy = hit.point.y + EPS;
       tool.ghost.position.set(gx, gy, gz);
       tool.ghost.rotation.set(0, THREE.MathUtils.degToRad(tool.yawDeg), 0);
       if (tool.standUp) tool.ghost.rotation.x = Math.PI / 2;
@@ -174,8 +213,9 @@ export function createBuildTool(THREE_NS, { scene, camera, input }) {
   }
 
   function placeCurrent() {
+    if (!tool.active || !tool.ghost || !tool.ghost.visible) return;
     const m = makePlacedMesh();
-    m.position.copy(tool.ghost.position); // already snapped to integer grid
+    m.position.copy(tool.ghost.position);
     m.rotation.copy(tool.ghost.rotation);
     scene.add(m);
     tool.placed.push(m);
