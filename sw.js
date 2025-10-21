@@ -1,7 +1,7 @@
 // sw.js
 
 // --- CONFIGURATION ---
-const CACHE_VERSION = 'v1.0.9'; // Incremented version
+const CACHE_VERSION = 'v1.0.10'; // <-- Incremented version
 const CACHE_NAME = `builder-pwa-${CACHE_VERSION}`;
 
 // List of all the files that make up the "app shell"
@@ -34,7 +34,7 @@ const APP_SHELL_URLS = [
   // External assets
   'https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js',
 
-  // --- All 14 texture sets ---
+  // --- All 14 texture sets (including existing roughness maps) ---
   // alloywall
   './assets/textures/alloywall/alloywall_albedo.png',
   './assets/textures/alloywall/alloywall_ao.png',
@@ -46,7 +46,7 @@ const APP_SHELL_URLS = [
   './assets/textures/cement/cement_height.png',
   './assets/textures/cement/cement_metallic.png',
   './assets/textures/cement/cement_normal.png',
-  './assets/textures/cement/cement_roughness.png',
+  './assets/textures/cement/cement_roughness.png', // Exists
   // grate
   './assets/textures/grate/grate.ao.png',
   './assets/textures/grate/grate_albedo.png',
@@ -59,7 +59,7 @@ const APP_SHELL_URLS = [
   './assets/textures/hexfloor/hexfloor_height.png',
   './assets/textures/hexfloor/hexfloor_metallic.png',
   './assets/textures/hexfloor/hexfloor_normal.png',
-  './assets/textures/hexfloor/hexfloor_roughness.png',
+  './assets/textures/hexfloor/hexfloor_roughness.png', // Exists
   // metal
   './assets/textures/metal/metal_albedo.png',
   './assets/textures/metal/metal_ao.png',
@@ -78,7 +78,7 @@ const APP_SHELL_URLS = [
   './assets/textures/oiltubes/oiltubes_height.png',
   './assets/textures/oiltubes/oiltubes_metallic.png',
   './assets/textures/oiltubes/oiltubes_normal.png',
-  './assets/textures/oiltubes/oiltubes_roughness.png',
+  './assets/textures/oiltubes/oiltubes_roughness.png', // Exists
   // oldmetal
   './assets/textures/oldmetal/oldmetal_albedo.png',
   './assets/textures/oldmetal/oldmetal_ao.png',
@@ -104,14 +104,14 @@ const APP_SHELL_URLS = [
   './assets/textures/spacepanels/spacepanels_height.png',
   './assets/textures/spacepanels/spacepanels_metallic.png',
   './assets/textures/spacepanels/spacepanels_normal.png',
-  './assets/textures/spacepanels/spacepanels_roughness.png',
+  './assets/textures/spacepanels/spacepanels_roughness.png', // Exists
   // techwall
   './assets/textures/techwall/techwall_albedo.png',
   './assets/textures/techwall/techwall_ao.png',
   './assets/textures/techwall/techwall_height.png',
   './assets/textures/techwall/techwall_metallic.png',
   './assets/textures/techwall/techwall_normal.png',
-  './assets/textures/techwall/techwall_roughness.png',
+  './assets/textures/techwall/techwall_roughness.png', // Exists
   // vent
   './assets/textures/vent/vent_albedo.png',
   './assets/textures/vent/vent_ao.png',
@@ -137,13 +137,13 @@ self.addEventListener('install', (event) => {
         // Add all URLs, handling potential failures individually
         const promises = APP_SHELL_URLS.map(url => {
           return cache.add(url).catch(err => {
-            console.warn(`[SW] Failed to cache ${url}: ${err}`);
+            console.warn(`[SW] Failed to cache ${url}: ${err}`); // Log failure but continue
           });
         });
-        return Promise.all(promises);
+        return Promise.all(promises); // Wait for all attempts
       })
       .then(() => self.skipWaiting()) // Activate new SW immediately
-      .catch(err => console.error('[SW] Installation failed:', err))
+      .catch(err => console.error('[SW] Installation failed:', err)) // Catch overall install failure
   );
 });
 
@@ -164,7 +164,7 @@ self.addEventListener('activate', (event) => {
        console.log('[SW] Claiming clients');
        return self.clients.claim(); // Take control of open pages
     })
-    .catch(err => console.error('[SW] Activation failed:', err))
+    .catch(err => console.error('[SW] Activation failed:', err)) // Catch overall activation failure
   );
 });
 
@@ -187,22 +187,28 @@ self.addEventListener('fetch', (event) => {
         // If not in cache, fetch from network
         // console.log(`[SW] Fetching from network: ${event.request.url}`);
         return fetch(event.request).then(networkResponse => {
-            // Optional: Cache the newly fetched resource dynamically
-            // Be cautious with dynamic caching, it can fill up storage.
-            // Consider only caching specific file types or origins.
-            /*
-            if (networkResponse && networkResponse.status === 200 && event.request.url.startsWith('http')) {
-               const responseToCache = networkResponse.clone();
-               caches.open(CACHE_NAME).then(cache => {
-                   cache.put(event.request, responseToCache);
-               });
+            // Check if the response is valid
+            if(!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
+                // Don't cache invalid responses (e.g., 404s, CORS errors)
+                // console.warn(`[SW] Not caching invalid response for ${event.request.url}`);
+                return networkResponse;
             }
-            */
+           // Optional: Dynamic caching (use with caution)
+           /*
+            const responseToCache = networkResponse.clone();
+            caches.open(CACHE_NAME).then(cache => {
+                cache.put(event.request, responseToCache);
+            });
+           */
            return networkResponse;
         }).catch(error => {
+            // Network request failed, probably offline
             console.error(`[SW] Fetch failed for ${event.request.url}:`, error);
-            // Optional: Return a fallback offline page/response here
-            // return caches.match('/offline.html');
+            // Optionally return a fallback response (e.g., an offline page)
+            // if (event.request.mode === 'navigate') { // Only for page navigations
+            //     return caches.match('/offline.html');
+            // }
+            // For other requests (like images), just let the browser handle the error
         });
       })
   );
