@@ -22,12 +22,12 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x101215);
 scene.fog = new THREE.Fog(0x101215, 60, 220);
 
-// ---------- Camera rig (FOV 60 via camera.js) ----------
+// ---------- Camera rig ----------
 const { camera, yaw, pitch } = createFPSCamera(THREE);
 scene.add(yaw);
 
 // ---------- World ----------
-const terrainMesh = createTerrain(THREE);  // flat 50x50 slight uneven
+const terrainMesh = createTerrain(THREE);   // ALWAYS a Mesh
 scene.add(terrainMesh);
 
 // Optional sky
@@ -37,25 +37,27 @@ if (sky) scene.add(sky);
 // PBR lights
 setupLighting(THREE, scene, renderer);
 
-// Neutral envMap so PBR looks right
+// Neutral envMap for nicer metals
 {
   const pmrem = new THREE.PMREMGenerator(renderer);
   const envScene = new THREE.Scene();
-  const box = new THREE.Mesh(
+  envScene.add(new THREE.Mesh(
     new THREE.BoxGeometry(10, 10, 10),
     new THREE.MeshBasicMaterial({ color: 0x888c92, side: THREE.BackSide })
-  );
-  envScene.add(box);
+  ));
   scene.environment = pmrem.fromScene(envScene).texture;
   pmrem.dispose();
 }
 
 // ---------- Helpers ----------
 const RC_DOWN = new THREE.Raycaster();
+
+/** Safe terrain height sampling; returns 0 if mesh is missing */
 function sampleTerrainY(x, z) {
-  // Cast straight down from above to find terrain height
+  if (!terrainMesh || !terrainMesh.isObject3D) return 0;
   RC_DOWN.set(new THREE.Vector3(x, 200, z), new THREE.Vector3(0, -1, 0));
-  const hit = RC_DOWN.intersectObject(terrainMesh, true)[0];
+  // No recursion needed; terrainMesh is a Mesh
+  const hit = RC_DOWN.intersectObject(terrainMesh, /*recursive=*/false)[0];
   return hit ? hit.point.y : 0;
 }
 
@@ -64,8 +66,8 @@ const EYE = 1.6;
 yaw.position.set(0, sampleTerrainY(0, 0) + EYE, 0);
 
 // ---------- Input ----------
-const pad   = createController();       // gamepad (Backbone etc.)
-const touch = createTouchControls();    // on-screen joystick + drag look
+const pad   = createController();
+const touch = createTouchControls();
 
 // Movement constants
 const SPEED_WALK = 5.0;
@@ -115,7 +117,7 @@ function tick() {
   const lookDX = pad.look.dx + touch.look.dx * 0.5;
   const lookDY = pad.look.dy + touch.look.dy * 0.5;
 
-  const SENS = 0.0022; // radians per “pixel”
+  const SENS = 0.0022;
   yaw.rotation.y   -= lookDX * SENS;
   pitch.rotation.x -= lookDY * SENS;
   pitch.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, pitch.rotation.x));
@@ -130,7 +132,7 @@ function tick() {
     pad.aHold || pad.xHold || pad.l1Pressed || pad.r1Pressed || pad.l2Pressed || pad.r2Pressed;
 
   const mvX = usePad ? pad.move.x : touch.move.x; // strafe
-  const mvY = usePad ? pad.move.y : touch.move.y; // forward (touch up = forward)
+  const mvY = usePad ? pad.move.y : touch.move.y; // forward
 
   const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(yaw.quaternion);
   const right = new THREE.Vector3(1, 0, 0).applyQuaternion(yaw.quaternion);
@@ -146,7 +148,7 @@ function tick() {
     if (pad.aHold) yaw.position.y += speed * dt;
     if (pad.xHold) yaw.position.y -= speed * dt;
   } else {
-    // Follow terrain
+    // Follow terrain smoothly
     const yGround = sampleTerrainY(yaw.position.x, yaw.position.z) + EYE;
     yaw.position.y += (yGround - yaw.position.y) * 0.25;
   }
