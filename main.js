@@ -7,6 +7,7 @@ import { Joystick } from './ui/Joystick.js';
 import { InputController } from './engine/inputController.js';
 import { Player } from './engine/player.js';
 import { PlacementController } from './engine/placement.js';
+import { LightingControls } from './ui/lightingcontrols.js'; // <-- ADDED IMPORT
 
 // Import geometries
 import { createBlockGeometry } from './engine/structures/block.js';
@@ -82,6 +83,16 @@ async function initializeApp() {
         world = new VoxelWorld(THREE, materials, { scene, sizeX:100, sizeZ:100, minY:-30, maxY:500 });
         
         world.rebuildAll(); // <-- THIS IS THE FIX
+
+        // --- ADD LIGHTING CONTROLS UI ---
+        new LightingControls({
+            renderer: renderer,
+            ambientLight: ambient,
+            hemisphereLight: hemi,
+            directionalLight: sun,
+            materials: materials 
+        });
+        // --- END LIGHTING CONTROLS ---
         
         console.log("World and controllers initialized.");
 
