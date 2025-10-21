@@ -1,57 +1,52 @@
-// structures/ramp.js — solid, watertight 1×1 ramp; height 0 → 0.5; tiles flush
+// structures/ramp.js — watertight 1×1 ramp, 0→0.5 height, per-face UVs
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js';
 
 export function createRampGeometry() {
-  // Vertices (grid-aligned so adjacent ramps share exact edges)
-  // Base y=0, front edge z=+0.5 at y=0.5.
-  const v = [
-    // base rectangle (y=0)
-    -0.5, 0.0, -0.5,  // 0
-     0.5, 0.0, -0.5,  // 1
-     0.5, 0.0,  0.5,  // 2
-    -0.5, 0.0,  0.5,  // 3
-    // front top edge (z=+0.5, y=0.5)
-    -0.5, 0.5,  0.5,  // 4
-     0.5, 0.5,  0.5   // 5
-  ];
+  // Coordinates are tile-aligned so adjacent ramps are perfectly flush.
+  const A = [-0.5, 0.0, -0.5]; // back-left  bottom
+  const B = [ 0.5, 0.0, -0.5]; // back-right bottom
+  const C = [ 0.5, 0.0,  0.5]; // front-right bottom
+  const D = [-0.5, 0.0,  0.5]; // front-left  bottom
+  const E = [-0.5, 0.5,  0.5]; // front-left  top
+  const F = [ 0.5, 0.5,  0.5]; // front-right top
 
-  // Triangles (CCW = outward)
-  const idx = [
-    // Top slope
-    0, 1, 5,
-    0, 5, 4,
+  // We duplicate verts per face so each face can have its own UV projection.
+  const pos = [];
+  const uv  = [];
+  const pushTri = (p0, p1, p2, uv0, uv1, uv2) => {
+    pos.push(...p0, ...p1, ...p2);
+    uv.push(...uv0, ...uv1, ...uv2);
+  };
 
-    // Bottom (faces down)
-    0, 2, 1,
-    0, 3, 2,
+  // Helpers for planar UVs
+  const uvXZ = ([x, , z]) => [x + 0.5, z + 0.5];     // project to XZ (0..1)
+  const uvXY = ([x, y])    => [x + 0.5, y / 0.5];     // X 0..1, Y 0..1 (since top=0.5)
+  const uvZY = ([, y, z])  => [z + 0.5, y / 0.5];     // Z 0..1, Y 0..1
 
-    // Front face (z = +0.5)
-    3, 2, 5,
-    3, 5, 4,
+  // Top slope (project on XZ so texture isn't stretched by slope)
+  pushTri(A, B, F, uvXZ(A), uvXZ(B), uvXZ(F));
+  pushTri(A, F, E, uvXZ(A), uvXZ(F), uvXZ(E));
 
-    // Left side (x = -0.5)
-    0, 3, 4,
+  // Bottom (faces down) — project on XZ
+  pushTri(A, C, B, uvXZ(A), uvXZ(C), uvXZ(B));
+  pushTri(A, D, C, uvXZ(A), uvXZ(D), uvXZ(C));
 
-    // Right side (x = +0.5)
-    1, 5, 2
-    // Back is a knife-edge; intentional for a wedge
-  ];
+  // Front wall (Z = +0.5) — project on X (0..1) and Y (0..1)
+  pushTri(D, C, F, uvXY([D[0], D[1]]), uvXY([C[0], C[1]]), uvXY([F[0], F[1]]));
+  pushTri(D, F, E, uvXY([D[0], D[1]]), uvXY([F[0], F[1]]), uvXY([E[0], E[1]]));
 
-  // Simple footprint UVs (ok for flat/PBR)
-  const uv = [
-    0,0,  1,0,  1,1,  0,1,  0,1,  1,1
-  ];
+  // Left side (X = -0.5) — triangle, project on ZY
+  pushTri(A, D, E, uvZY(A), uvZY(D), uvZY(E));
+
+  // Right side (X = +0.5) — triangle, project on ZY
+  pushTri(B, F, C, uvZY(B), uvZY(F), uvZY(C));
 
   const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(v, 3));
-  g.setIndex(idx);
-  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv',       new THREE.Float32BufferAttribute(uv, 2));
+  // uv2 for AO (copy uv)
+  g.setAttribute('uv2',      new THREE.Float32BufferAttribute(uv.slice(), 2));
   g.computeVertexNormals();
   g.computeBoundingSphere();
-
-  // uv2 for AO compatibility later
-  const uvAttr = g.getAttribute('uv');
-  g.setAttribute('uv2', new THREE.BufferAttribute(uvAttr.array.slice(0), 2));
-
   return g;
 }
