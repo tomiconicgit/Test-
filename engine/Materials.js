@@ -20,10 +20,13 @@ function loadTex(url, opts = {}) {
  * @param {string} [options.aoFile] - Specific filename for AO (e.g., "grate.ao.png").
  * @param {string} [options.metalFile] - Specific filename for metallic.
  * @param {number} [options.roughness] - Default roughness if no map.
+ * @param {number} [options.repeat] - UV repeat value (default: 1).
  */
 async function createPBRMaterial(name, options = {}) {
   const path = options.path || name;
   const basePath = `./assets/textures/${path}/${name}`;
+  // --- MODIFICATION: Set default repeat value ---
+  const repeat = options.repeat || 1.0;
 
   // Define texture paths, allowing for overrides
   const texPaths = {
@@ -44,9 +47,10 @@ async function createPBRMaterial(name, options = {}) {
     loadTex(texPaths.height), // Not used by MeshStandardMaterial directly
   ]);
 
+  // --- MODIFICATION: Apply the new repeat value ---
   // Set texture repeats for all loaded textures
   for (const t of [albedo, normal, metallic, ao, roughness, height]) {
-    if (t) { t.repeat.set(1, 1); }
+    if (t) { t.repeat.set(repeat, repeat); }
   }
 
   return new THREE.MeshStandardMaterial({
@@ -63,6 +67,10 @@ async function createPBRMaterial(name, options = {}) {
 }
 
 export async function makeMaterials() {
+  // --- MODIFICATION: Added 'repeat: 0.5' to the materials you listed ---
+  // To make a texture appear LARGER, we use a SMALLER repeat value.
+  const repeatVal = 0.5; // This will make textures 2x larger
+  
   // Create all PBR materials in parallel
   const [
     metal, alloywall, cement, grate, hexfloor, metalcubes,
@@ -70,20 +78,21 @@ export async function makeMaterials() {
     techwall, vent, ventslating
   ] = await Promise.all([
     createPBRMaterial('metal', { roughness: 0.35 }),
-    createPBRMaterial('alloywall', { roughness: 0.25 }),
-    createPBRMaterial('cement', { roughness: 0.8 }),
-    createPBRMaterial('grate', { aoFile: 'grate.ao.png', roughness: 0.1 }),
-    createPBRMaterial('hexfloor', { roughness: 0.1 }),
-    createPBRMaterial('metalcubes', { roughness: 0.1 }),
-    createPBRMaterial('oiltubes', { roughness: 0.4 }),
-    createPBRMaterial('oldmetal', { roughness: 0.3 }),
-    createPBRMaterial('polishedtile', { metalFile: 'polishedtile_metallic2.png', roughness: 0.05 }),
-    createPBRMaterial('rustymetal', { roughness: 0.4 }),
-    createPBRMaterial('spacepanels', { roughness: 0.3 }),
-    createPBRMaterial('techwall', { roughness: 0.1 }),
-    createPBRMaterial('vent', { roughness: 0.15 }),
-    createPBRMaterial('ventslating', { roughness: 0.1 }),
+    createPBRMaterial('alloywall', { roughness: 0.25, repeat: repeatVal }),
+    createPBRMaterial('cement', { roughness: 0.8, repeat: repeatVal }),
+    createPBRMaterial('grate', { aoFile: 'grate.ao.png', roughness: 0.1 }), // Not requested
+    createPBRMaterial('hexfloor', { roughness: 0.1, repeat: repeatVal }),
+    createPBRMaterial('metalcubes', { roughness: 0.1, repeat: repeatVal }),
+    createPBRMaterial('oiltubes', { roughness: 0.4 }), // Not requested
+    createPBRMaterial('oldmetal', { roughness: 0.3 }), // Not requested
+    createPBRMaterial('polishedtile', { metalFile: 'polishedtile_metallic2.png', roughness: 0.05, repeat: repeatVal }),
+    createPBRMaterial('rustymetal', { roughness: 0.4 }), // Not requested
+    createPBRMaterial('spacepanels', { roughness: 0.3, repeat: repeatVal }),
+    createPBRMaterial('techwall', { roughness: 0.1, repeat: repeatVal }),
+    createPBRMaterial('vent', { roughness: 0.15, repeat: repeatVal }),
+    createPBRMaterial('ventslating', { roughness: 0.1, repeat: repeatVal }),
   ]);
+  // --- END MODIFICATION ---
 
   // Original non-PBR materials
   const sand = new THREE.MeshStandardMaterial({
