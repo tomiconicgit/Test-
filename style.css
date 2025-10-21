@@ -44,9 +44,7 @@ html,body { margin:0; height:100%; background:#000; color:var(--fg); font-family
   border-radius: 16px;
   backdrop-filter: blur(5px);
 }
-/* --- MODIFICATION HERE --- */
-/* Added #texturePicker to this rule */
-#itemPicker, #texturePicker {
+#itemPicker, #texturePicker { /* Combined rule */
   width: 100%;
   padding: 14px;
   background: transparent;
@@ -58,10 +56,8 @@ html,body { margin:0; height:100%; background:#000; color:var(--fg); font-family
   -webkit-appearance: none;
   cursor: pointer;
 }
-/* --- END MODIFICATION --- */
-
 .select-wrapper::after {
-  content: '▼'; /* Changed to a simpler arrow */
+  content: '▼';
   font-size: 12px;
   color: rgba(255,255,255,0.5);
   position: absolute;
@@ -71,14 +67,18 @@ html,body { margin:0; height:100%; background:#000; color:var(--fg); font-family
   pointer-events: none;
 }
 
-#actionButtons { display:flex; gap:8px; }
+/* --- MODIFICATION HERE --- */
+#actionButtons { 
+  display: grid; /* Changed from flex */
+  grid-template-columns: 1fr 1fr; /* Create a 2x2 grid */
+  gap: 8px; /* This now applies to rows and columns */
+}
+
 #actionButtons button {
-  /* --- MODIFICATION HERE --- */
-  flex-grow: 1;      /* Replaces flex:1 */
-  flex-basis: 0;       /* Replaces flex:1 - allows buttons to shrink */
-  padding: 12px 5px;   /* Reduced padding so they fit */
-  font-size: 14px;     /* Reduced font size */
-  /* --- END MODIFICATION --- */
+  /* Reverted to original, touch-friendly padding and font size */
+  padding: 20px 10px;
+  font-size: 16px;
+  /* Removed the flex properties */
   
   border-radius:16px;
   border:1px solid rgba(255,255,255,.2);
@@ -89,6 +89,8 @@ html,body { margin:0; height:100%; background:#000; color:var(--fg); font-family
   letter-spacing:.5px; 
   transition: background .2s;
 }
+/* --- END MODIFICATION --- */
+
 #actionButtons button:active {
   background: rgba(40,42,45,.6);
 }
@@ -96,11 +98,10 @@ html,body { margin:0; height:100%; background:#000; color:var(--fg); font-family
 #btnPlace { border-color:rgba(77,163,255,.35); }
 #btnRemove { border-color:rgba(255,100,100,.35); }
 
-/* --- ADD THIS BLOCK --- */
-/* Added styles for the new buttons so they match */
+/* Styles for the new buttons */
 #btnSave { border-color:rgba(100, 255, 100, .35); }
 #btnLoad { border-color:rgba(255, 180, 80, .35); }
-/* --- END OF BLOCK --- */
+
 
 @media (orientation:portrait) {
   #hint::after { content:" • Tip: rotate phone for landscape"; }
