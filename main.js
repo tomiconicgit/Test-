@@ -15,8 +15,8 @@ import { createFloorGeometry } from './engine/structures/floor.js';
 import { createGlassPaneGeometry } from './engine/structures/glass.js';
 import { createSlopeGeometry } from './engine/structures/slope.js';
 import { createCylinderGeometry } from './engine/structures/cylinder.js';
-import { 
-    createPipeStraightGeometry, 
+import {
+    createPipeStraightGeometry,
     createPipeElbowGeometry
 } from './engine/structures/pipe.js';
 
@@ -29,11 +29,9 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-// --- MODIFICATION: Tone Mapping ---
-// Helps map HDR lighting to screen brightness, often makes scenes look better/brighter.
+// --- Tone Mapping ---
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.0; // You can adjust this value (e.g., 1.2 for brighter)
-// --- END MODIFICATION ---
+renderer.toneMappingExposure = 1.0; // Adjust for overall brightness (e.g., 1.2)
 
 const scene = new THREE.Scene();
 scene.fog = new THREE.Fog(0xa7c4ff, 80, 300);
@@ -41,32 +39,23 @@ renderer.setClearColor(0x87b4ff, 1.0);
 
 const camera = new THREE.PerspectiveCamera(90, innerWidth/innerHeight, 0.1, 1000);
 
-// --- MODIFICATION: Adjust Lighting ---
-// Increase Hemisphere intensity for overall ambient + ground color
-const hemi = new THREE.HemisphereLight(0xddeeff, 0x998877, 1.8); // Increased from 1.2
+// --- Adjusted Lighting ---
+const hemi = new THREE.HemisphereLight(0xddeeff, 0x998877, 1.8); // Increased intensity
 scene.add(hemi);
 
-// Increase Sun intensity
-const sun = new THREE.DirectionalLight(0xffffff, 1.5); // Increased from 0.8
+const sun = new THREE.DirectionalLight(0xffffff, 1.5); // Increased intensity
 sun.position.set(100, 100, 50); sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
 sun.shadow.camera.left = -80; sun.shadow.camera.right = 80;
 sun.shadow.camera.top = 80; sun.shadow.camera.bottom = -80;
 scene.add(sun);
 
-// Add a gentle AmbientLight for base illumination
-const ambient = new THREE.AmbientLight(0xffffff, 0.3); // Add a soft white ambient light
+const ambient = new THREE.AmbientLight(0xffffff, 0.3); // Added soft ambient light
 scene.add(ambient);
-
-// Removed the extra directional fill lights as they might overcomplicate things now
-// const lightFill1 = new THREE.DirectionalLight(0xffffff, 0.4); lightFill1.position.set(-100, 60, -50); scene.add(lightFill1);
-// const lightFill2 = new THREE.DirectionalLight(0xffffff, 0.4); lightFill2.position.set(50, 60, -100); scene.add(lightFill2);
-// const lightFill3 = new THREE.DirectionalLight(0xffffff, 0.4); lightFill3.position.set(-50, 60, 100); scene.add(lightFill3);
-// --- END MODIFICATION ---
 
 const materials = await makeMaterials();
 
-// Geometries list is now simple
+// Geometries list
 const propGeometries = {
     'BLOCK': createBlockGeometry(),
     'WALL': createWallGeometry(),
@@ -86,12 +75,12 @@ const world = new VoxelWorld(THREE, materials, { scene, sizeX:100, sizeZ:100, mi
 
 // --- UI STATE ---
 let activeItem = 'VOXEL';
-let activeMaterial = materials.metal; 
-let activeScale = 1.0; 
+let activeMaterial = materials.metal;
+let activeScale = 1.0;
 
 document.getElementById('itemPicker').addEventListener('change', e => { activeItem = e.target.value; });
-document.getElementById('texturePicker').addEventListener('change', e => { 
-  activeMaterial = materials[e.target.value] || materials.metal; 
+document.getElementById('texturePicker').addEventListener('change', e => {
+  activeMaterial = materials[e.target.value] || materials.metal;
 });
 
 const scaleButtons = document.querySelectorAll('.scaleBtn');
@@ -99,13 +88,14 @@ scaleButtons.forEach(button => {
   button.addEventListener('click', () => {
     scaleButtons.forEach(btn => btn.classList.remove('active'));
     button.classList.add('active');
-    activeScale = parseFloat(button.dataset.scale); 
+    activeScale = parseFloat(button.dataset.scale);
   });
 });
 
 // --- UI ACTIONS ---
-document.getElementById('btnPlace').addEventListener('click', () => placement.place(world, activeItem, activeMaterial, activeScale)); 
+document.getElementById('btnPlace').addEventListener('click', () => placement.place(world, activeItem, activeMaterial, activeScale));
 document.getElementById('btnRemove').addEventListener('click', () => placement.remove(world));
+
 document.getElementById('btnSave').addEventListener('click', () => {
     const worldData = world.serialize();
     const blob = new Blob([worldData], { type: 'application/json' });
@@ -116,15 +106,20 @@ document.getElementById('btnSave').addEventListener('click', () => {
     a.click();
     URL.revokeObjectURL(url);
 });
+
 const loadFileInput = document.getElementById('loadFile');
-document.getElementById('btnLoad').addEventListener('click', () => { loadFileInput.click(); });
+document.getElementById('btnLoad').addEventListener('click', () => {
+    loadFileInput.click(); // Open the file picker
+});
+
 loadFileInput.addEventListener('change', (event) => {
     const file = event.target.files[0];
     if (!file) return;
+
     const reader = new FileReader();
     reader.onload = (e) => {
         const content = e.target.result;
-        try { // Add error handling for bad JSON
+         try { // Add error handling for bad JSON
             world.deserialize(content, propGeometries);
         } catch (error) {
             console.error("Failed to load world:", error);
@@ -132,9 +127,9 @@ loadFileInput.addEventListener('change', (event) => {
         }
     };
     reader.readAsText(file);
-    event.target.value = null; 
+    // Reset the input so you can load the same file again
+    event.target.value = null;
 });
-
 
 // --- MAIN LOOP ---
 let lastT = performance.now();
@@ -146,11 +141,11 @@ function tick() {
     // Update controllers
     input.update(dt);
     player.update(dt, input, world);
-    placement.update(world, player, activeItem, activeMaterial, activeScale, input); 
+    placement.update(world, player, activeItem, activeMaterial, activeScale, input);
 
     // Check for actions from input controller
     if (input.place) {
-        placement.place(world, activeItem, activeMaterial, activeScale); 
+        placement.place(world, activeItem, activeMaterial, activeScale);
     }
     if (input.remove) {
         placement.remove(world);
