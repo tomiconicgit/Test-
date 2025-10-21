@@ -2,12 +2,13 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.m
 
 export class LightingControls {
     constructor(refs) {
-        if (!refs || !refs.renderer || !refs.ambientLight || !refs.hemisphereLight || !refs.directionalLight || !refs.materials) {
-            console.error("LightingControls missing required references.");
+        if (!refs || !refs.renderer || !refs.ambientLight || !refs.hemisphereLight || !refs.directionalLight || !refs.materials || !refs.world) {
+            console.error("LightingControls missing required references (e.g., world).");
             return;
         }
         this.refs = refs;
-        this.materialsList = Object.values(this.refs.materials);
+        
+        const firstMat = Object.values(this.refs.materials)[0];
         
         // Store initial values from the refs
         this.settings = {
@@ -18,8 +19,11 @@ export class LightingControls {
             hemiGround: "#" + this.refs.hemisphereLight.groundColor.getHexString(),
             sun: this.refs.directionalLight.intensity,
             sunColor: "#" + this.refs.directionalLight.color.getHexString(),
-            // Get envMapIntensity from the first available material
-            reflectivity: this.materialsList[0] ? this.materialsList[0].envMapIntensity : 1.5
+            reflectivity: firstMat ? firstMat.envMapIntensity : 1.5,
+            // --- ADDED: Default values for new sliders ---
+            metalness: 1.0,
+            roughness: 1.0
+            // --- END ADDED ---
         };
 
         this._createUI();
@@ -68,6 +72,13 @@ export class LightingControls {
         content += createSlider('lc_sun', 'Sun', 0, 3, 0.05, this.settings.sun);
         content += createSlider('lc_reflectivity', 'Reflectivity', 0, 5, 0.1, this.settings.reflectivity);
         
+        // --- ADDED: Metalness and Roughness sliders ---
+        content += '<hr class="lc-divider">';
+        content += createSlider('lc_metalness', 'Metalness', 0, 1, 0.01, this.settings.metalness);
+        content += createSlider('lc_roughness', 'Roughness', 0, 1, 0.01, this.settings.roughness);
+        // --- END ADDED ---
+
+        content += '<hr class="lc-divider">';
         content += createColorPicker('lc_hemiSky', 'Hemi Sky', this.settings.hemiSky);
         content += createColorPicker('lc_hemiGround', 'Hemi Ground', this.settings.hemiGround);
         content += createColorPicker('lc_sunColor', 'Sun Color', this.settings.sunColor);
@@ -84,6 +95,10 @@ export class LightingControls {
             hemi: this.panel.querySelector('#lc_hemi'),
             sun: this.panel.querySelector('#lc_sun'),
             reflectivity: this.panel.querySelector('#lc_reflectivity'),
+            // --- ADDED ---
+            metalness: this.panel.querySelector('#lc_metalness'),
+            roughness: this.panel.querySelector('#lc_roughness'),
+            // --- END ADDED ---
             hemiSky: this.panel.querySelector('#lc_hemiSky'),
             hemiGround: this.panel.querySelector('#lc_hemiGround'),
             sunColor: this.panel.querySelector('#lc_sunColor'),
@@ -96,6 +111,23 @@ export class LightingControls {
             const isHidden = this.panel.style.display === 'none';
             this.panel.style.display = isHidden ? 'flex' : 'none';
         });
+
+        // Helper function to update all PBR materials
+        const updateAllMaterials = (property, value) => {
+            // 1. Update all props already in the world
+            this.refs.world.props.forEach(prop => {
+                if (prop.material && prop.material[property] !== undefined) {
+                    prop.material[property] = value;
+                }
+            });
+
+            // 2. Update all original materials so new props get the new value
+            Object.values(this.refs.materials).forEach(mat => {
+                if (mat && mat[property] !== undefined) {
+                    mat[property] = value;
+                }
+            });
+        };
 
         // Sliders
         this.inputs.exposure.addEventListener('input', e => {
@@ -124,11 +156,23 @@ export class LightingControls {
         
         this.inputs.reflectivity.addEventListener('input', e => {
             const val = parseFloat(e.target.value);
-            this.materialsList.forEach(mat => {
-                if (mat) mat.envMapIntensity = val;
-            });
+            updateAllMaterials('envMapIntensity', val); // Use helper
             e.target.nextElementSibling.textContent = val.toFixed(2);
         });
+
+        // --- ADDED: New slider listeners ---
+        this.inputs.metalness.addEventListener('input', e => {
+            const val = parseFloat(e.target.value);
+            updateAllMaterials('metalness', val); // Use helper
+            e.target.nextElementSibling.textContent = val.toFixed(2);
+        });
+
+        this.inputs.roughness.addEventListener('input', e => {
+            const val = parseFloat(e.target.value);
+            updateAllMaterials('roughness', val); // Use helper
+            e.target.nextElementSibling.textContent = val.toFixed(2);
+        });
+        // --- END ADDED ---
 
         // Color Pickers
         this.inputs.hemiSky.addEventListener('input', e => {
@@ -156,7 +200,11 @@ export class LightingControls {
             hemiGroundColor: this.inputs.hemiGround.value,
             sunIntensity: parseFloat(this.inputs.sun.value),
             sunColor: this.inputs.sunColor.value,
-            envMapIntensity: parseFloat(this.inputs.reflectivity.value)
+            envMapIntensity: parseFloat(this.inputs.reflectivity.value),
+            // --- ADDED ---
+            metalness: parseFloat(this.inputs.metalness.value),
+            roughness: parseFloat(this.inputs.roughness.value)
+            // --- END ADDED ---
         };
         
         navigator.clipboard.writeText(JSON.stringify(settings, null, 2))
@@ -214,6 +262,14 @@ export class LightingControls {
                 text-align: center;
                 font-weight: 600;
             }
+            /* --- ADDED: Divider style --- */
+            .lc-divider {
+                border: none;
+                height: 1px;
+                background: rgba(255, 255, 255, 0.1);
+                margin: 4px 0;
+            }
+            /* --- END ADDED --- */
             .light-slider-group {
                 display: flex;
                 align-items: center;
