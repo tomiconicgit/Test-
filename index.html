@@ -8,7 +8,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <link rel="manifest" href="./manifest.json">
   <link rel="stylesheet" href="./style.css?v=1.0.7" />
-  </head>
+</head>
 <body>
   <canvas id="c"></canvas>
   <input type="file" id="loadFile" accept=".json" style="display: none;" />
@@ -49,6 +49,11 @@
         </select>
         </div>
       
+      <div id="scaleButtons">
+        <button class="scaleBtn active" data-scale="1">1x1</button>
+        <button class="scaleBtn" data-scale="0.5">2x2</button>
+        <button class="scaleBtn" data-scale="0.25">4x4</button>
+      </div>
       <div id="actionButtons">
         <button id="btnPlace">Place</button>
         <button id="btnRemove">Remove</button>
