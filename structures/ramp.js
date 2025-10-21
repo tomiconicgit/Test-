@@ -1,55 +1,40 @@
-// structures/ramp.js — 1x1 ramp wedge, height from 0 to 0.5, centered, pivot at ground
+// structures/ramp.js — solid 1×1 ramp, height 0 → 0.5, watertight
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js';
 
 export function createRampGeometry() {
-  // Coordinates:
-  // Back edge z=-0.5 at y=0; Front edge z=+0.5 at y=0.5
-  const A = [-0.5, 0.0, -0.5];
-  const B = [ 0.5, 0.0, -0.5];
-  const C = [ 0.5, 0.0,  0.5];
-  const D = [-0.5, 0.0,  0.5];
+  // Build a right triangle in the XY plane:
+  // (-0.5,0) -> (0.5,0) -> (0.5,0.5)
+  // Then extrude along +Z depth=1, center, rotate so extrusion axis becomes X.
+  const shape = new THREE.Shape();
+  shape.moveTo(-0.5, 0.0);
+  shape.lineTo( 0.5, 0.0);
+  shape.lineTo( 0.5, 0.5);
+  shape.closePath();
 
-  const A2 = [-0.5, 0.0, -0.5]; // top back same height
-  const B2 = [ 0.5, 0.0, -0.5];
-  const C2 = [ 0.5, 0.5,  0.5]; // front top +0.5
-  const D2 = [-0.5, 0.5,  0.5];
+  const geo = new THREE.ExtrudeGeometry(shape, {
+    depth: 1,            // extrude thickness
+    steps: 1,
+    bevelEnabled: false,
+    curveSegments: 3
+  });
 
-  const positions = [
-    // Top sloped (A2,B2,C2,D2)
-    ...A2, ...B2, ...C2,
-    ...A2, ...C2, ...D2,
+  // Center: move extrusion axis from [0..1] to [-0.5..0.5]
+  geo.translate(0, 0, -0.5);
 
-    // Bottom (A,B,C,D) — facing down
-    ...A, ...C, ...B,
-    ...A, ...D, ...C,
+  // Rotate so extrusion (Z) becomes X. (Z->X), (-X->Z)
+  geo.rotateY(-Math.PI / 2);
 
-    // Front face z=+0.5 (D,C,C2,D2)
-    ...D, ...C, ...C2,
-    ...D, ...C2, ...D2,
+  // Now: footprint X∈[-0.5,0.5], Z∈[-0.5,0.5], height Y∈[0,0.5]
+  // Pivot at ground already (min Y = 0), nothing else to do.
 
-    // Left face x=-0.5 (A,D,D2,A2)
-    ...A, ...D, ...D2,
-    ...A, ...D2, ...A2,
+  geo.computeVertexNormals();
+  geo.computeBoundingSphere();
 
-    // Right face x=+0.5 (B,C,C2,B2)
-    ...B, ...C, ...C2,
-    ...B, ...C2, ...B2,
-
-    // (Back face would be degenerate; skipped)
-  ];
-
-  // Simple UVs (not perfect; good enough for flat color/PBR)
-  const uvs = [];
-  for (let i=0; i<positions.length; i+=3) {
-    const x = positions[i], z = positions[i+2];
-    uvs.push(x+0.5, z+0.5);
+  // Ensure uv2 exists for aoMap if you ever add PBR maps later
+  const uv = geo.getAttribute('uv');
+  if (uv && !geo.getAttribute('uv2')) {
+    geo.setAttribute('uv2', new THREE.BufferAttribute(uv.array.slice(0), 2));
   }
 
-  const geom = new THREE.BufferGeometry();
-  geom.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  geom.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
-  geom.computeVertexNormals();
-
-  // Pivot at base is already at y=0 (lowest edge)
-  return geom;
+  return geo;
 }
