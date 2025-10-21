@@ -1,8 +1,8 @@
-// controller.js — stick mappings locked to standard; no fallback cross-talk
+// controller.js — strict mapping; higher right-stick sensitivity for look
 export function createController() {
   const state = {
-    look: { dx:0, dy:0 },
-    move: { x:0, y:0 },
+    look: { dx: 0, dy: 0 },
+    move: { x: 0, y: 0 },
 
     // edge-triggered
     bPressed:false, xPressed:false, yPressed:false,
@@ -18,9 +18,9 @@ export function createController() {
   };
 
   const DEADZONE = 0.10;
-  const SENS_PX = 250; // pixels/sec for look
+  const LOOK_SENS_PX = 360; // ↑ was 250 — snappier right-stick look
 
-  function dz(v){ return Math.abs(v) > DEADZONE ? v : 0; }
+  const dz = v => (Math.abs(v) > DEADZONE ? v : 0);
 
   state.update = (dt) => {
     state.look.dx = 0; state.look.dy = 0;
@@ -34,7 +34,7 @@ export function createController() {
     const gp = pads.find(p => p && p.connected) || null;
     if (!gp) { state.aHold = state.xHold = false; return; }
 
-    // STRICT standard mapping
+    // Standard mapping only
     const ax = gp.axes || [];
     const LX = dz(ax[0] ?? 0);
     const LY = dz(ax[1] ?? 0);
@@ -42,14 +42,14 @@ export function createController() {
     const RY = dz(ax[3] ?? 0);
 
     // Left stick = movement only
-    state.move.x = -LX;   // strafe (invert to match camera basis)
-    state.move.y =  LY;   // forward/back
+    state.move.x = -LX;
+    state.move.y =  LY;
 
     // Right stick = look only
-    state.look.dx += RX * SENS_PX * dt;
-    state.look.dy += RY * SENS_PX * dt;
+    state.look.dx += RX * LOOK_SENS_PX * dt;
+    state.look.dy += RY * LOOK_SENS_PX * dt;
 
-    // Buttons (standard)
+    // Buttons (A,B,X,Y,L1,R1,L2,R2)
     const aNow  = !!(gp.buttons?.[0]?.pressed);
     const bNow  = !!(gp.buttons?.[1]?.pressed);
     const xNow  = !!(gp.buttons?.[2]?.pressed);
@@ -59,7 +59,6 @@ export function createController() {
     const l2Now = !!(gp.buttons?.[6]?.pressed);
     const r2Now = !!(gp.buttons?.[7]?.pressed);
 
-    // Edges
     state.bPressed  = bNow  && !state._prev.b;
     state.xPressed  = xNow  && !state._prev.x;
     state.yPressed  = yNow  && !state._prev.y;
@@ -68,7 +67,7 @@ export function createController() {
     state.l2Pressed = l2Now && !state._prev.l2;
     state.r2Pressed = r2Now && !state._prev.r2;
 
-    // Double-tap A (≤300 ms)
+    // Double-tap A (≤300ms)
     state.aDouble = false;
     if (aNow && !state._prev.a) {
       const now = performance.now();
