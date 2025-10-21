@@ -1,29 +1,27 @@
-/* loader.js — boot/loader + on-screen debugger for your PWA
-   - Fullscreen splash with progress %
-   - Preloads core modules (so you don't stare at a black screen)
-   - Dynamically imports ./main.js when ready
-   - Catches errors (window.onerror / unhandledrejection / console.error)
-   - Shows an on-screen error panel with Copy + Retry
-   - Exposes window.__LOADER API (optional) so app code can push extra progress
+/* loader.js — FPVMC boot/loader + on-screen debugger
+   - Fixed-size loader card with FPVMC logo
+   - Progress bar + % while core files preload
+   - Waits for the app's *first rendered frame* before hiding
+   - Catches errors and shows copy-to-clipboard panel
+   - Exposes window.__LOADER API:
+       .setStatus(text)
+       .addTasks(n)
+       .done(n)
+       .attachThreeLoadingManager(manager)
+       .appReady()        // call this when your app renders a frame
 */
 
 (function () {
-  // -------- Config: list the critical files to preload (modules only; textures load later in-app) -----
+  // -------- Config: preloaded modules (not textures) -------
   const CORE_URLS = [
     './main.js',
-
-    // UI
     './ui/Joystick.js',
     './ui/lightingcontrols.js',
-
-    // Engine
     './engine/Materials.js',
     './engine/VoxelWorld.js',
     './engine/inputController.js',
     './engine/placement.js',
     './engine/player.js',
-
-    // Structures
     './engine/structures/block.js',
     './engine/structures/cylinder.js',
     './engine/structures/floor.js',
@@ -31,24 +29,41 @@
     './engine/structures/slope.js',
     './engine/structures/wall.js',
     './engine/structures/pipe.js',
-
-    // External (cache a local copy through SW; still good to touch it so % moves)
     'https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js'
   ];
 
-  // -------- DOM: create overlay, bar, percent, status, and error panel -------
+  // -------- DOM: overlay + fixed card -------
   const root = document.createElement('div');
   root.id = 'boot-overlay';
   root.innerHTML = `
     <div class="boot-card">
-      <div class="boot-title">Loading…</div>
-      <div class="boot-status" id="boot-status">Preparing</div>
+      <div class="boot-header">
+        <div class="boot-logo" aria-hidden="true">
+          <svg viewBox="0 0 64 64" width="28" height="28">
+            <defs><linearGradient id="g" x1="0" x2="1" y1="0" y2="1">
+              <stop offset="0" stop-color="#4da3ff"/><stop offset="1" stop-color="#7bb8ff"/>
+            </linearGradient></defs>
+            <rect x="8" y="8" width="48" height="48" rx="12" fill="url(#g)"/>
+            <path d="M19 40 L32 17 L45 40" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="32" cy="44" r="3" fill="#fff"/>
+          </svg>
+        </div>
+        <div class="boot-title">
+          <div class="brand">FPVMC</div>
+          <div class="subtitle">First-Person View • Model Creation</div>
+        </div>
+      </div>
+
+      <div class="boot-status" id="boot-status">Preparing…</div>
+
       <div class="boot-bar">
         <div class="boot-bar-fill" id="boot-fill" style="width:0%"></div>
       </div>
       <div class="boot-percent"><span id="boot-pct">0</span>%</div>
+
       <div class="boot-mini-log" id="boot-mini-log"></div>
-      <div class="boot-actions" id="boot-actions" style="display:none">
+
+      <div class="boot-actions" id="boot-actions" style="visibility:hidden">
         <button id="boot-copy">Copy Error</button>
         <button id="boot-retry">Retry</button>
       </div>
@@ -56,45 +71,73 @@
   `;
   document.body.appendChild(root);
 
-  // CSS (scoped)
+  // CSS
   const style = document.createElement('style');
   style.textContent = `
     #boot-overlay {
       position: fixed; inset: 0; z-index: 99999;
       display:flex; align-items:center; justify-content:center;
-      background: radial-gradient(1200px 800px at 50% -10%, rgba(135,180,255,.35), rgba(0,0,0,.8)),
+      background: radial-gradient(1200px 800px at 50% -10%, rgba(135,180,255,.35), rgba(0,0,0,.85)),
                   linear-gradient(#0b0d10, #0b0d10);
       color:#eaeaea; font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial;
     }
     .boot-card {
-      width:min(520px, 90vw);
-      padding:24px 20px;
-      background: rgba(20,22,25,.65);
+      width: 560px; height: 300px;  /* FIXED SIZE */
+      padding: 18px 18px 14px;
+      display: grid;
+      grid-template-rows: auto 18px 16px auto auto;
+      gap: 8px;
+      background: rgba(20,22,25,.70);
       border:1px solid rgba(255,255,255,.12);
       border-radius:16px;
       backdrop-filter: blur(10px);
       box-shadow: 0 20px 60px rgba(0,0,0,.45);
+      overflow: hidden;
     }
-    .boot-title { font-size:18px; font-weight:700; letter-spacing:.2px; margin-bottom:8px; }
-    .boot-status { opacity:.9; font-size:13px; margin-bottom:12px; min-height:18px; }
+    .boot-header { display:flex; align-items:center; gap:10px; }
+    .boot-logo { width:28px; height:28px; display:grid; place-items:center; }
+    .boot-title .brand { font-weight:800; letter-spacing:.3px; }
+    .boot-title .subtitle { font-size:12px; opacity:.75; margin-top:2px; }
+
+    .boot-status { margin-top:2px; font-size:13px; opacity:.95; min-height:16px; }
+
     .boot-bar { width:100%; height:12px; background:rgba(255,255,255,.06); border-radius:10px; overflow:hidden; border:1px solid rgba(255,255,255,.12); }
     .boot-bar-fill { height:100%; width:0%; background:linear-gradient(90deg, rgba(77,163,255,.95), rgba(77,163,255,.55)); }
-    .boot-percent { text-align:right; font-variant-numeric: tabular-nums; font-size:13px; margin-top:6px; opacity:.85; }
-    .boot-mini-log { margin-top:10px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:12px; line-height:1.35; max-height:120px; overflow:auto; white-space:pre-wrap; color:#cfd7ff; }
-    .boot-actions { margin-top:14px; display:flex; gap:8px; justify-content:flex-end; }
+
+    .boot-percent { text-align:right; font-variant-numeric: tabular-nums; font-size:12px; opacity:.85; }
+
+    .boot-mini-log {
+      margin-top:2px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size:12px; line-height:1.35;
+      height: 150px; /* FIXED */
+      overflow:auto; white-space:pre-wrap; color:#cfd7ff;
+      background: rgba(0,0,0,.25);
+      border:1px solid rgba(255,255,255,.08);
+      border-radius:8px; padding:8px;
+    }
+
+    .boot-actions {
+      margin-top:4px; display:flex; gap:8px; justify-content:flex-end;
+    }
     .boot-actions button {
-      padding:10px 12px; border-radius:10px; border:1px solid rgba(255,255,255,.2);
-      background: rgba(30,32,36,.6); color:#fff; font-weight:600; cursor:pointer;
+      padding:8px 10px; border-radius:10px; border:1px solid rgba(255,255,255,.2);
+      background: rgba(30,32,36,.6); color:#fff; font-weight:700; cursor:pointer; font-size:12px;
     }
     .boot-actions button:active { transform: translateY(1px); }
+
     .boot-hidden { opacity:0; pointer-events:none; transition: opacity .25s ease; }
+    @media (max-width:640px){ .boot-card{ width: 92vw; } }
   `;
   document.head.appendChild(style);
 
   // -------- State + helpers --------
-  let totalTasks = CORE_URLS.length;
+  let totalTasks = CORE_URLS.length + 1; // +1 for the dynamic import step
   let doneTasks = 0;
   let paused = false;
+  let readyResolve;
+  const readyPromise = new Promise(res => (readyResolve = res));
+
   const logs = [];
   const errLogs = [];
 
@@ -119,11 +162,12 @@
   function log(line) {
     const entry = `[${new Date().toLocaleTimeString()}] ${line}`;
     logs.push(entry);
-    if (logs.length > 100) logs.shift();
-    miniLog.textContent = logs.slice(-8).join('\n');
+    if (logs.length > 200) logs.shift();
+    miniLog.textContent = logs.slice(-10).join('\n');
+    miniLog.scrollTop = miniLog.scrollHeight;
   }
   function showErrorPanel() {
-    actions.style.display = 'flex';
+    actions.style.visibility = 'visible';
   }
   function pauseForError(msg, stack) {
     paused = true;
@@ -133,7 +177,7 @@
     showErrorPanel();
   }
   function collectErrorBlob() {
-    const html = document.documentElement.outerHTML.slice(0, 2000); // small snapshot
+    const html = document.documentElement.outerHTML.slice(0, 2000);
     return [
       '--- Loader Error Report ---',
       `Time: ${new Date().toISOString()}`,
@@ -153,18 +197,11 @@
     ].join('\n');
   }
 
-  // Copy + Retry buttons
   $('boot-copy').addEventListener('click', async () => {
-    try {
-      await navigator.clipboard.writeText(collectErrorBlob());
-      log('Copied error details to clipboard.');
-    } catch (e) {
-      log('Clipboard failed: ' + e.message);
-    }
+    try { await navigator.clipboard.writeText(collectErrorBlob()); log('Copied error details to clipboard.'); }
+    catch (e) { log('Clipboard failed: ' + e.message); }
   });
-  $('boot-retry').addEventListener('click', () => {
-    location.reload();
-  });
+  $('boot-retry').addEventListener('click', () => location.reload());
 
   // -------- Error interception --------
   const origOnError = window.onerror;
@@ -182,43 +219,42 @@
     if (!paused) pauseForError(String(msg));
   });
 
-  // Mirror console.error into on-screen log (but don't suppress it)
   const origConsoleError = console.error;
   console.error = function (...args) {
     try { errLogs.push('[console.error] ' + args.map(a => (a && a.stack) ? a.stack : String(a)).join(' ')); } catch {}
     origConsoleError.apply(console, args);
   };
 
-  // -------- Optional public API so app code can extend progress later --------
+  // -------- Public API for app --------
   window.__LOADER = {
+    setStatus,
     addTasks(n = 1) { totalTasks += Math.max(0, n|0); },
     done(n = 1) { for (let i = 0; i < n; i++) bump(); },
-    setStatus,
-    // If your app uses THREE.LoadingManager, you can hook it:
     attachThreeLoadingManager(manager) {
       if (!manager) return;
       log('Attached THREE.LoadingManager');
-      // optimistic: each item = 1 task
-      manager.onStart = (_url, _loaded, _total) => { /* no-op */ };
-      manager.onLoad = () => { /* no-op */ };
-      manager.onProgress = () => { bump(); };
-      manager.onError = (url) => { pauseForError('Three.js failed to load: ' + url); };
-      // reserve 50 slots by default (tweak as needed)
+      // reserve some slots so progress moves during texture loads
       window.__LOADER.addTasks(50);
+      manager.onProgress = () => bump();
+      manager.onError = (url) => pauseForError('Three.js failed to load: ' + url);
+    },
+    appReady() {  // called by main.js AFTER first frame renders
+      try { readyResolve(); } catch {}
     }
   };
 
-  // -------- Preload core modules (count by file, not bytes) --------
+  // Also support a custom DOM event if you prefer:
+  window.addEventListener('world:first-frame', () => window.__LOADER.appReady(), { once: true });
+
+  // -------- Preload core modules --------
   async function preloadCore() {
     setStatus('Preloading core files…');
     for (const url of CORE_URLS) {
       if (paused) return;
       try {
-        // Use cache, but ensure we get a body so SW warms it
         const res = await fetch(url, { cache: 'force-cache', mode: 'cors' });
         if (!res.ok && res.type !== 'opaque') throw new Error(`HTTP ${res.status} for ${url}`);
-        bump();
-        log('✓ ' + url);
+        bump(); log('✓ ' + url);
       } catch (err) {
         pauseForError('Failed to preload: ' + url, err && err.stack);
         return;
@@ -229,36 +265,29 @@
   // -------- Boot sequence --------
   (async function boot() {
     try {
-      // Small visual head-start
-      setPct(3);
-      setStatus('Starting loader…');
-      await new Promise(r => setTimeout(r, 120));
+      setPct(3); setStatus('Starting loader…');
+      await new Promise(r => setTimeout(r, 100));
 
-      // Wait for SW to be ready (if present) — optional, but helps consistent caching
+      // Optional: wait briefly for SW
       if ('serviceWorker' in navigator) {
         setStatus('Checking service worker…');
-        await Promise.race([
-          navigator.serviceWorker.ready,
-          new Promise(r => setTimeout(r, 1200))
-        ]).catch(() => {});
+        await Promise.race([navigator.serviceWorker.ready, new Promise(r => setTimeout(r, 1200))]).catch(()=>{});
       }
 
       await preloadCore();
       if (paused) return;
 
       setStatus('Launching app…');
-      // Important: Dynamic import main.js (ESM) AFTER preload
-      await import('./main.js');
+      await import('./main.js'); // main will call __LOADER.appReady() after first frame
+      bump(); // count dynamic import as a task
 
-      // Give main a moment to paint
+      // DO NOT hide loader yet — wait for first frame:
+      setStatus('Waiting for first frame…');
+      await readyPromise;
+
       setStatus('Finalizing…');
       setPct(100);
-      setTimeout(() => {
-        root.classList.add('boot-hidden');
-        setTimeout(() => {
-          root.remove();
-        }, 300);
-      }, 150);
+      setTimeout(() => { root.classList.add('boot-hidden'); setTimeout(() => root.remove(), 280); }, 160);
 
     } catch (err) {
       pauseForError(err.message || String(err), err.stack);
