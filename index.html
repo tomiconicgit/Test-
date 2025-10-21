@@ -11,6 +11,8 @@
 </head>
 <body>
   <canvas id="c"></canvas>
+  <!-- ADD THIS HIDDEN FILE INPUT -->
+  <input type="file" id="loadFile" accept=".json" style="display: none;" />
 
   <div id="hud">
     <div id="joystick"></div>
@@ -33,7 +35,7 @@
           <option value="vent">Vent</option>
           <option value="ventslating">Vent Slating</option>
         </select>
-        </div>
+      </div>
       <div class="select-wrapper">
         <select id="itemPicker">
           <option value="VOXEL">Voxel</option>
@@ -48,10 +50,14 @@
         </select>
         </div>
       
+      <!-- --- MODIFICATION HERE --- -->
       <div id="actionButtons">
         <button id="btnPlace">Place</button>
         <button id="btnRemove">Remove</button>
+        <button id="btnSave">Save</button>
+        <button id="btnLoad">Load</button>
       </div>
+      <!-- --- END MODIFICATION --- -->
     </div>
 
     <div id="crosshair"></div>
