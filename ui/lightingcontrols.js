@@ -173,7 +173,7 @@ export class LightingControls {
 
     _injectCSS() {
         const style = document.createElement('style');
-        style.textContent = \`
+        style.textContent = `
             #lightControlsToggle {
                 position: fixed;
                 top: 20px;
@@ -258,7 +258,7 @@ export class LightingControls {
             #lc_copyButton:active {
                 background: rgba(40,42,45,.6);
             }
-        \`;
+        `;
         document.head.appendChild(style);
     }
 }
