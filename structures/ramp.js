@@ -1,40 +1,57 @@
-// structures/ramp.js — solid 1×1 ramp, height 0 → 0.5, watertight
+// structures/ramp.js — solid, watertight 1×1 ramp; height 0 → 0.5; tiles flush
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js';
 
 export function createRampGeometry() {
-  // Build a right triangle in the XY plane:
-  // (-0.5,0) -> (0.5,0) -> (0.5,0.5)
-  // Then extrude along +Z depth=1, center, rotate so extrusion axis becomes X.
-  const shape = new THREE.Shape();
-  shape.moveTo(-0.5, 0.0);
-  shape.lineTo( 0.5, 0.0);
-  shape.lineTo( 0.5, 0.5);
-  shape.closePath();
+  // Vertices (grid-aligned so adjacent ramps share exact edges)
+  // Base y=0, front edge z=+0.5 at y=0.5.
+  const v = [
+    // base rectangle (y=0)
+    -0.5, 0.0, -0.5,  // 0
+     0.5, 0.0, -0.5,  // 1
+     0.5, 0.0,  0.5,  // 2
+    -0.5, 0.0,  0.5,  // 3
+    // front top edge (z=+0.5, y=0.5)
+    -0.5, 0.5,  0.5,  // 4
+     0.5, 0.5,  0.5   // 5
+  ];
 
-  const geo = new THREE.ExtrudeGeometry(shape, {
-    depth: 1,            // extrude thickness
-    steps: 1,
-    bevelEnabled: false,
-    curveSegments: 3
-  });
+  // Triangles (CCW = outward)
+  const idx = [
+    // Top slope
+    0, 1, 5,
+    0, 5, 4,
 
-  // Center: move extrusion axis from [0..1] to [-0.5..0.5]
-  geo.translate(0, 0, -0.5);
+    // Bottom (faces down)
+    0, 2, 1,
+    0, 3, 2,
 
-  // Rotate so extrusion (Z) becomes X. (Z->X), (-X->Z)
-  geo.rotateY(-Math.PI / 2);
+    // Front face (z = +0.5)
+    3, 2, 5,
+    3, 5, 4,
 
-  // Now: footprint X∈[-0.5,0.5], Z∈[-0.5,0.5], height Y∈[0,0.5]
-  // Pivot at ground already (min Y = 0), nothing else to do.
+    // Left side (x = -0.5)
+    0, 3, 4,
 
-  geo.computeVertexNormals();
-  geo.computeBoundingSphere();
+    // Right side (x = +0.5)
+    1, 5, 2
+    // Back is a knife-edge; intentional for a wedge
+  ];
 
-  // Ensure uv2 exists for aoMap if you ever add PBR maps later
-  const uv = geo.getAttribute('uv');
-  if (uv && !geo.getAttribute('uv2')) {
-    geo.setAttribute('uv2', new THREE.BufferAttribute(uv.array.slice(0), 2));
-  }
+  // Simple footprint UVs (ok for flat/PBR)
+  const uv = [
+    0,0,  1,0,  1,1,  0,1,  0,1,  1,1
+  ];
 
-  return geo;
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(v, 3));
+  g.setIndex(idx);
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.computeVertexNormals();
+  g.computeBoundingSphere();
+
+  // uv2 for AO compatibility later
+  const uvAttr = g.getAttribute('uv');
+  g.setAttribute('uv2', new THREE.BufferAttribute(uvAttr.array.slice(0), 2));
+
+  return g;
 }
