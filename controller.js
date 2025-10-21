@@ -1,12 +1,12 @@
-// controller.js — Backbone/iOS-safe polling + buttons (B, X, R2)
+// controller.js — Backbone/iOS-safe polling + buttons (B, X, Y, R2)
 export function createController() {
   const state = {
     look: { dx:0, dy:0 },
     move: { x:0, y:0 },
     // edge-triggered buttons:
-    bPressed:false, xPressed:false, r2Pressed:false,
+    bPressed:false, xPressed:false, yPressed:false, r2Pressed:false,
     // internals
-    _prev:{ b:false, x:false, r2:false }
+    _prev:{ b:false, x:false, y:false, r2:false }
   };
 
   function dz(v, d=0.10){ return Math.abs(v)>d ? v : 0; }
@@ -15,7 +15,7 @@ export function createController() {
   state.update = (dt) => {
     state.look.dx = 0; state.look.dy = 0;
     state.move.x = 0;  state.move.y = 0;
-    state.bPressed = state.xPressed = state.r2Pressed = false;
+    state.bPressed = state.xPressed = state.yPressed = state.r2Pressed = false;
 
     const pads = (navigator.getGamepads && navigator.getGamepads()) || [];
     const gp = pads.find(p => p && p.connected) || null;
@@ -37,13 +37,15 @@ export function createController() {
     // buttons (standard mapping): A(0), B(1), X(2), Y(3), L2(6), R2(7)
     const bNow  = !!(gp.buttons?.[1]?.pressed);
     const xNow  = !!(gp.buttons?.[2]?.pressed);
+    const yNow  = !!(gp.buttons?.[3]?.pressed);
     const r2Now = !!(gp.buttons?.[7]?.pressed);
 
     state.bPressed  = bNow  && !state._prev.b;
     state.xPressed  = xNow  && !state._prev.x;
+    state.yPressed  = yNow  && !state._prev.y;
     state.r2Pressed = r2Now && !state._prev.r2;
 
-    state._prev = { b:bNow, x:xNow, r2:r2Now };
+    state._prev = { b:bNow, x:xNow, y:yNow, r2:r2Now };
   };
 
   state.resetLook = () => { state.look.dx = 0; state.look.dy = 0; };
