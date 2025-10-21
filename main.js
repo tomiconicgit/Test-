@@ -1,13 +1,13 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js';
 import { makeMaterials } from './engine/Materials.js';
-import { VoxelWorld } from './engine/VoxelWorld.js';
+import { VoxelWorld } from './engine/VoxelWorld.js'; // <-- FIXED TYPO
 import { Joystick } from './ui/Joystick.js';
 
 // Import the new controllers
 import { InputController } from './engine/inputController.js';
-import { Player } from './engine.player.js';
+import { Player } from './engine/player.js'; // <-- FIXED TYPO
 import { PlacementController } from './engine/placement.js';
-import { LightingControls } from './ui/lightingcontrols.js'; // <-- ADDED IMPORT
+import { LightingControls } from './ui/lightingcontrols.js'; 
 
 // Import geometries
 import { createBlockGeometry } from './engine/structures/block.js';
@@ -91,7 +91,7 @@ async function initializeApp() {
             hemisphereLight: hemi,
             directionalLight: sun,
             materials: materials,
-            world: world // <-- MODIFICATION: Pass the world object
+            world: world 
         });
         // --- END LIGHTING CONTROLS ---
         
