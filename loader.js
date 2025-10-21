@@ -29,7 +29,9 @@
     './engine/structures/slope.js',
     './engine/structures/wall.js',
     './engine/structures/pipe.js',
-    'https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js'
+    './engine/structures/blockRoundedSides.js', // NEW
+    'https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js',
+    'https://cdn.jsdelivr.net/npm/three@0.168.0/examples/jsm/utils/BufferGeometryUtils.js' // NEW
   ];
 
   // -------- DOM: overlay + fixed card -------
@@ -233,7 +235,7 @@
     attachThreeLoadingManager(manager) {
       if (!manager) return;
       log('Attached THREE.LoadingManager');
-      // reserve some slots so progress moves during texture loads
+      // reserve slots so progress moves during texture loads
       window.__LOADER.addTasks(50);
       manager.onProgress = () => bump();
       manager.onError = (url) => pauseForError('Three.js failed to load: ' + url);
