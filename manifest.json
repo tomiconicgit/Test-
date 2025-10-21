@@ -1,21 +1,9 @@
 {
-  "short_name": "Builder",
-  "name": "Builder PWA",
-  "icons": [
-    {
-      "src": "icon-192.png",
-      "type": "image/png",
-      "sizes": "192x192"
-    },
-    {
-      "src": "icon-512.png",
-      "type": "image/png",
-      "sizes": "512x512"
-    }
-  ],
+  "name": "FPVMC",
+  "short_name": "FPVMC",
   "start_url": ".",
-  "background_color": "#000",
   "display": "standalone",
-  "scope": ".",
-  "theme_color": "#000"
+  "background_color": "#0b0d10",
+  "theme_color": "#0b0d10",
+  "icons": []
 }
