@@ -12,15 +12,6 @@ function loadTex(url, opts = {}) {
   });
 }
 
-/**
- * Creates a PBR material from a set of textures in a directory.
- * name: folder/file prefix (e.g. 'metal' -> assets/textures/metal/metal_*.png)
- * options:
- *   path, repeat, hasRoughnessMap, metalFile, aoFile,
- *   metalness (fallback if no metalnessMap),
- *   roughness (fallback if no roughnessMap),
- *   iblIntensity (envMapIntensity override)
- */
 async function createPBRMaterial(name, options = {}) {
   const path = options.path || name;
   const basePath = `./assets/textures/${path}/${name}`;
@@ -55,14 +46,12 @@ async function createPBRMaterial(name, options = {}) {
     metalnessMap: metallic || null,
     aoMap: ao || null,
     roughnessMap: roughness || null,
-    metalness: metallic ? 1.0 : (options.metalness ?? 0.0),   // sensible default for non-metals
+    metalness: metallic ? 1.0 : (options.metalness ?? 0.0),
     roughness: roughness ? 1.0 : (options.roughness ?? 0.5),
-    envMapIntensity: options.iblIntensity ?? 0.6,             // ↓↓↓ lower default IBL so sky doesn’t overpower
+    envMapIntensity: options.iblIntensity ?? 0.6, // ↓ lower default IBL so sky doesn’t overpower
   });
 
-  // Slight boost so AO is visible with repeat UVs
   if (mat.aoMap) mat.aoMapIntensity = 1.0;
-
   return mat;
 }
 
@@ -77,11 +66,11 @@ export async function makeMaterials() {
     ] = await Promise.all([
       createPBRMaterial('metal',        { roughness: 0.35, iblIntensity: 0.7 }),
       createPBRMaterial('alloywall',    { roughness: 0.25, repeat: repeatVal, iblIntensity: 0.65 }),
-      createPBRMaterial('cement',       { roughness: 0.9, repeat: repeatVal, hasRoughnessMap: true, metalness: 0.0, iblIntensity: 0.4 }),
+      createPBRMaterial('cement',       { roughness: 0.9,  repeat: repeatVal, hasRoughnessMap: true, metalness: 0.0, iblIntensity: 0.4 }),
       createPBRMaterial('grate',        { aoFile: 'grate.ao.png', roughness: 0.2, iblIntensity: 0.6 }),
-      createPBRMaterial('hexfloor',     { roughness: 0.2, repeat: repeatVal, hasRoughnessMap: true, iblIntensity: 0.6 }),
-      createPBRMaterial('metalcubes',   { roughness: 0.2, repeat: repeatVal, iblIntensity: 0.65 }),
-      createPBRMaterial('oiltubes',     { roughness: 0.5, hasRoughnessMap: true, iblIntensity: 0.6 }),
+      createPBRMaterial('hexfloor',     { roughness: 0.2,  repeat: repeatVal, hasRoughnessMap: true, iblIntensity: 0.6 }),
+      createPBRMaterial('metalcubes',   { roughness: 0.2,  repeat: repeatVal, iblIntensity: 0.65 }),
+      createPBRMaterial('oiltubes',     { roughness: 0.5,  hasRoughnessMap: true, iblIntensity: 0.6 }),
       createPBRMaterial('oldmetal',     { roughness: 0.35, iblIntensity: 0.65 }),
       createPBRMaterial('polishedtile', { metalFile: 'polishedtile_metallic2.png', roughness: 0.12, repeat: repeatVal, iblIntensity: 0.55 }),
       createPBRMaterial('rustymetal',   { roughness: 0.45, iblIntensity: 0.6 }),
