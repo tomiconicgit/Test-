@@ -22,6 +22,8 @@ let renderer, scene, camera, materials, propGeometries, input, player, placement
 
 async function initializeApp() {
   try {
+    window.__LOADER?.setStatus?.('Init renderer…');
+
     // Renderer
     renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
     renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -39,17 +41,18 @@ async function initializeApp() {
     renderer.setClearColor(SKY, 1.0);
     scene.background = new THREE.Color(SKY);
 
-    // --- NEUTRAL IBL (no examples import) ---
+    // Neutral IBL (no examples import)
+    window.__LOADER?.setStatus?.('Build environment…');
     const pmrem = new THREE.PMREMGenerator(renderer);
     const envScene = new THREE.Scene();
     const room = new THREE.Mesh(
       new THREE.BoxGeometry(10, 10, 10),
-      new THREE.MeshBasicMaterial({ color: 0x8a8f96, side: THREE.BackSide }) // neutral grey
+      new THREE.MeshBasicMaterial({ color: 0x8a8f96, side: THREE.BackSide })
     );
     envScene.add(room);
     const neutralEnv = pmrem.fromScene(envScene).texture;
-    scene.environment = neutralEnv; // neutral reflections (no blue)
-    pmrem.dispose(); // generator can go; texture stays alive
+    scene.environment = neutralEnv;
+    pmrem.dispose();
 
     // Camera
     camera = new THREE.PerspectiveCamera(90, innerWidth / innerHeight, 0.1, 1000);
@@ -69,8 +72,10 @@ async function initializeApp() {
     const ambient = new THREE.AmbientLight(0xffffff, 0.2);
     scene.add(ambient);
 
-    // Materials (lower IBL intensity defaults inside)
+    // Materials
+    window.__LOADER?.setStatus?.('Load materials…');
     materials = await makeMaterials();
+    window.__LOADER?.done?.();
 
     // Geometries
     propGeometries = {
@@ -85,6 +90,7 @@ async function initializeApp() {
     };
 
     // Controllers + world
+    window.__LOADER?.setStatus?.('Start world…');
     input = new InputController(new Joystick(document.getElementById('joystick')));
     player = new Player(scene, camera);
     placement = new PlacementController(scene, camera, propGeometries, materials);
@@ -141,6 +147,7 @@ async function initializeApp() {
     });
 
     // Loop
+    window.__LOADER?.setStatus?.('Render…');
     let lastT = performance.now();
     function tick() {
       requestAnimationFrame(tick);
@@ -169,7 +176,8 @@ async function initializeApp() {
 
   } catch (error) {
     console.error("Initialization failed:", error);
-    alert("Failed to initialize. Check console for errors.");
+    // loader will catch this and show the error UI
+    throw error;
   }
 }
 
