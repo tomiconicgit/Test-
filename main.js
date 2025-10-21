@@ -1,11 +1,11 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js';
 import { makeMaterials } from './engine/Materials.js';
-import { VoxelWorld } from './engine/VoxelWorld.js'; // <-- FIXED TYPO
+import { VoxelWorld } from './engine/VoxelWorld.js';
 import { Joystick } from './ui/Joystick.js';
 
 // Import the new controllers
 import { InputController } from './engine/inputController.js';
-import { Player } from './engine/player.js'; // <-- FIXED TYPO
+import { Player } from './engine/player.js';
 import { PlacementController } from './engine/placement.js';
 import { LightingControls } from './ui/lightingcontrols.js'; 
 
@@ -41,6 +41,16 @@ async function initializeApp() {
         scene = new THREE.Scene();
         scene.fog = new THREE.Fog(0xa7c4ff, 80, 300);
         renderer.setClearColor(0x87b4ff, 1.0);
+
+        // --- MODIFICATION: GENERATE ENVIRONMENT MAP ---
+        // This tells the scene to use the clear color as its "background"
+        scene.background = new THREE.Color(0x87b4ff);
+        
+        // This generates a reflection map (envMap) from the scene.background
+        const pmremGenerator = new THREE.PMREMGenerator(renderer);
+        scene.environment = pmremGenerator.fromScene(scene).texture;
+        pmremGenerator.dispose(); // Clean up
+        // --- END MODIFICATION ---
 
         camera = new THREE.PerspectiveCamera(90, innerWidth/innerHeight, 0.1, 1000);
 
