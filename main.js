@@ -15,7 +15,7 @@ import { createGlassPaneGeometry } from './engine/structures/glass.js';
 import { createSlopeGeometry } from './engine/structures/slope.js';
 import { createCylinderGeometry } from './engine/structures/cylinder.js';
 import { createPipeStraightGeometry, createPipeElbowGeometry } from './engine/structures/pipe.js';
-import { createTower20Geometry } from './engine/structures/tower20.js'; // NEW
+import { createBlockRoundedSidesGeometry } from './engine/structures/blockRoundedSides.js'; // NEW
 
 const canvas = document.getElementById('c');
 let renderer, scene, camera, materials, propGeometries, input, player, placement, world;
@@ -69,6 +69,7 @@ async function initializeApp() {
 
     propGeometries = {
       BLOCK: createBlockGeometry(),
+      BLOCK_ROUNDED: createBlockRoundedSidesGeometry(), // NEW
       WALL: createWallGeometry(),
       PANE: createGlassPaneGeometry(),
       FLOOR: createFloorGeometry(),
@@ -76,7 +77,7 @@ async function initializeApp() {
       CYLINDER: createCylinderGeometry(),
       PIPE_STRAIGHT: createPipeStraightGeometry(),
       PIPE_ELBOW: createPipeElbowGeometry(),
-      TOWER20: createTower20Geometry(), // NEW
+      // Removed TOWER20
     };
 
     window.__LOADER?.setStatus?.('Start world…');
