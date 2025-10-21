@@ -67,21 +67,51 @@ const input = new InputController(new Joystick(document.getElementById('joystick
 const player = new Player(scene, camera);
 const placement = new PlacementController(scene, camera, propGeometries, materials);
 const world = new VoxelWorld(THREE, materials, { scene, sizeX:100, sizeZ:100, minY:-30, maxY:500 });
-world.props = []; // Add props array to world for the placement controller to use
 
 // --- UI STATE ---
 let activeItem = 'VOXEL';
 let activeMaterial = materials.metal; // Default to metal
 document.getElementById('itemPicker').addEventListener('change', e => { activeItem = e.target.value; });
 document.getElementById('texturePicker').addEventListener('change', e => { 
-  // This line is already correct. It finds the material in the 'materials' object.
   activeMaterial = materials[e.target.value] || materials.metal; 
 });
 
 // --- UI ACTIONS ---
-// --- MODIFICATION: Pass activeMaterial to the placement controller ---
 document.getElementById('btnPlace').addEventListener('click', () => placement.place(world, activeItem, activeMaterial));
 document.getElementById('btnRemove').addEventListener('click', () => placement.remove(world));
+
+// --- ADD SAVE/LOAD LOGIC ---
+document.getElementById('btnSave').addEventListener('click', () => {
+    const worldData = world.serialize();
+    const blob = new Blob([worldData], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'world.json';
+    a.click();
+    URL.revokeObjectURL(url);
+});
+
+const loadFileInput = document.getElementById('loadFile');
+document.getElementById('btnLoad').addEventListener('click', () => {
+    loadFileInput.click(); // Open the file picker
+});
+
+loadFileInput.addEventListener('change', (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        const content = e.target.result;
+        world.deserialize(content, propGeometries);
+    };
+    reader.readAsText(file);
+    // Reset the input so you can load the same file again
+    event.target.value = null; 
+});
+// --- END SAVE/LOAD LOGIC ---
+
 
 // --- MAIN LOOP ---
 let lastT = performance.now();
@@ -93,18 +123,15 @@ function tick() {
     // Update controllers
     input.update(dt);
     player.update(dt, input, world);
-    // --- MODIFICATION: Pass activeMaterial to the update function ---
     placement.update(world, player, activeItem, activeMaterial, input);
 
     // Check for actions from input controller
     if (input.place) {
-        // --- MODIFICATION: Pass activeMaterial to the place function ---
         placement.place(world, activeItem, activeMaterial);
     }
     if (input.remove) {
         placement.remove(world);
     }
-    // This is the rotate check you asked for
     if (input.rotate) {
         placement.rotate(world);
     }
