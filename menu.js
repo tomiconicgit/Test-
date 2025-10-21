@@ -1,5 +1,5 @@
-// menu.js — minimal hamburger with dropdown (Dig Tool)
-export function createMenu({ onDigTool }) {
+// menu.js — hamburger menu with "Dig Tool" and "Build Tool"
+export function createMenu({ onDigTool, onBuildTool }) {
   const btn = document.createElement('button');
   btn.id = 'menu-btn';
   btn.innerHTML = `
@@ -9,10 +9,14 @@ export function createMenu({ onDigTool }) {
       <rect x="3" y="17" width="18" height="2" rx="1" fill="currentColor"/>
     </svg>
   `;
+
   const panel = document.createElement('div');
   panel.id = 'menu-panel';
-  panel.innerHTML = `<button id="menu-dig">Dig Tool</button>`;
   panel.style.display = 'none';
+  panel.innerHTML = `
+    <button id="menu-dig">Dig Tool</button>
+    <button id="menu-build">Build Tool</button>
+  `;
 
   document.body.append(btn, panel);
 
@@ -24,7 +28,7 @@ export function createMenu({ onDigTool }) {
       background:rgba(20,22,25,.6);backdrop-filter:blur(8px);color:#eaeaea;display:grid;place-items:center;
     }
     #menu-panel{
-      position:fixed;top:64px;left:16px;z-index:1000;min-width:160px;
+      position:fixed;top:64px;left:16px;z-index:1000;min-width:180px;
       background:rgba(20,22,25,.9);border:1px solid rgba(255,255,255,.18);border-radius:12px;backdrop-filter:blur(8px);
       padding:8px;display:flex;flex-direction:column;gap:6px;
     }
@@ -39,9 +43,13 @@ export function createMenu({ onDigTool }) {
   btn.addEventListener('click', () => {
     panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
   });
-  document.getElementById('menu-dig').addEventListener('click', () => {
+  panel.querySelector('#menu-dig').addEventListener('click', () => {
     panel.style.display = 'none';
     onDigTool?.();
+  });
+  panel.querySelector('#menu-build').addEventListener('click', () => {
+    panel.style.display = 'none';
+    onBuildTool?.();
   });
 
   return { open:()=>panel.style.display='block', close:()=>panel.style.display='none' };
