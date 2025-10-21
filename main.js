@@ -5,7 +5,7 @@ import { Joystick } from './ui/Joystick.js';
 
 // Import the new controllers
 import { InputController } from './engine/inputController.js';
-import { Player } from './engine/player.js';
+import { Player } from './engine.player.js';
 import { PlacementController } from './engine/placement.js';
 import { LightingControls } from './ui/lightingcontrols.js'; // <-- ADDED IMPORT
 
@@ -90,7 +90,8 @@ async function initializeApp() {
             ambientLight: ambient,
             hemisphereLight: hemi,
             directionalLight: sun,
-            materials: materials 
+            materials: materials,
+            world: world // <-- MODIFICATION: Pass the world object
         });
         // --- END LIGHTING CONTROLS ---
         
