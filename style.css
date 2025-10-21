@@ -44,7 +44,9 @@ html,body { margin:0; height:100%; background:#000; color:var(--fg); font-family
   border-radius: 16px;
   backdrop-filter: blur(5px);
 }
-#itemPicker {
+/* --- MODIFICATION HERE --- */
+/* Added #texturePicker to this rule */
+#itemPicker, #texturePicker {
   width: 100%;
   padding: 14px;
   background: transparent;
@@ -56,8 +58,10 @@ html,body { margin:0; height:100%; background:#000; color:var(--fg); font-family
   -webkit-appearance: none;
   cursor: pointer;
 }
+/* --- END MODIFICATION --- */
+
 .select-wrapper::after {
-  content: '▼';
+  content: '▼'; /* Changed to a simpler arrow */
   font-size: 12px;
   color: rgba(255,255,255,0.5);
   position: absolute;
@@ -69,8 +73,13 @@ html,body { margin:0; height:100%; background:#000; color:var(--fg); font-family
 
 #actionButtons { display:flex; gap:8px; }
 #actionButtons button {
-  flex:1; 
-  padding: 20px 10px;
+  /* --- MODIFICATION HERE --- */
+  flex-grow: 1;      /* Replaces flex:1 */
+  flex-basis: 0;       /* Replaces flex:1 - allows buttons to shrink */
+  padding: 12px 5px;   /* Reduced padding so they fit */
+  font-size: 14px;     /* Reduced font size */
+  /* --- END MODIFICATION --- */
+  
   border-radius:16px;
   border:1px solid rgba(255,255,255,.2);
   background: rgba(20,22,25,.5);
@@ -78,7 +87,6 @@ html,body { margin:0; height:100%; background:#000; color:var(--fg); font-family
   color:var(--fg); 
   font-weight:700; 
   letter-spacing:.5px; 
-  font-size:16px;
   transition: background .2s;
 }
 #actionButtons button:active {
@@ -87,6 +95,12 @@ html,body { margin:0; height:100%; background:#000; color:var(--fg); font-family
 
 #btnPlace { border-color:rgba(77,163,255,.35); }
 #btnRemove { border-color:rgba(255,100,100,.35); }
+
+/* --- ADD THIS BLOCK --- */
+/* Added styles for the new buttons so they match */
+#btnSave { border-color:rgba(100, 255, 100, .35); }
+#btnLoad { border-color:rgba(255, 180, 80, .35); }
+/* --- END OF BLOCK --- */
 
 @media (orientation:portrait) {
   #hint::after { content:" • Tip: rotate phone for landscape"; }
