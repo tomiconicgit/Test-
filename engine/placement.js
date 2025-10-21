@@ -15,14 +15,17 @@ export class PlacementController {
         this.snapTarget = null;
         this.currentHit = null;
 
-        this.verticalPreview = true; // preview orientation flag (vertical by default)
+        this.verticalPreview = true; // preview orientation flag
 
         this.previewMat = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.35, side: THREE.DoubleSide });
         this.previewMesh = new THREE.Mesh(new THREE.BufferGeometry(), this.previewMat);
         this.previewMesh.visible = false;
         this.scene.add(this.previewMesh);
 
-        this.voxelHighlight = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1.001, 1.001, 1.001)), new THREE.LineBasicMaterial({ color: 0xffffff, linewidth: 3 }));
+        this.voxelHighlight = new THREE.LineSegments(
+            new THREE.EdgesGeometry(new THREE.BoxGeometry(1.001, 1.001, 1.001)),
+            new THREE.LineBasicMaterial({ color: 0xffffff, linewidth: 3 })
+        );
         this.scene.add(this.voxelHighlight);
 
         this.propHighlight = new THREE.BoxHelper(new THREE.Object3D(), 0xffffff);
@@ -53,12 +56,8 @@ export class PlacementController {
         }
 
         // Flip existing target vertical/horizontal (D-pad)
-        if (input.flipToHorizontal && targetedProp) {
-            this._setVertical(targetedProp, false);
-        }
-        if (input.flipToVertical && targetedProp) {
-            this._setVertical(targetedProp, true);
-        }
+        if (input.flipToHorizontal && targetedProp) this._setVertical(targetedProp, false);
+        if (input.flipToVertical && targetedProp)   this._setVertical(targetedProp, true);
 
         // Snap mode toggle
         if (input.snap && targetedProp) {
@@ -109,7 +108,7 @@ export class PlacementController {
 
             // Dispose cloned materials
             if (obj.material && obj.material !== this.allMaterials.glass && obj.material !== this.allMaterials.sand) {
-                const maps = ['map', 'normalMap', 'metalnessMap', 'aoMap', 'roughnessMap'];
+                const maps = ['map', 'normalMap', 'metalnessMap', 'aoMap', 'roughnessMap', 'displacementMap'];
                 maps.forEach(m => { if (obj.material[m]) obj.material[m].dispose(); });
                 obj.material.dispose();
             }
@@ -123,7 +122,7 @@ export class PlacementController {
         }
     }
 
-    rotate(world) { /* kept for compatibility; L1 handled in update() */ }
+    rotate(world) { /* compatibility; rotation handled in update() */ }
 
     // Internal ---------------------------------------------------------------
     _handleSnapMode(activeItem, target) {
@@ -150,33 +149,31 @@ export class PlacementController {
         }
         if (!isProp) return;
 
-        // Build preview geometry
         this.previewMesh.geometry = this.propGeometries[activeItem];
+
         const pos = hit.prev;
         const n = hit.normal;
         const playerAngle = Math.round(player.yaw.rotation.y / (Math.PI / 2)) * (Math.PI / 2);
 
-        // Default preview orientation (upright vs horizontal)
+        // Default preview orientation
         this.previewMesh.rotation.set(0, 0, 0);
         if (!this.verticalPreview) this.previewMesh.rotation.x = Math.PI / 2;
 
-        // Edge-snapping for WALL / PANE to the voxel face (perimeter)
+        // Edge-snapping for WALL / PANE to voxel face (perimeter)
         if (activeItem === 'WALL' || activeItem === 'PANE') {
-            const halfT = (activeItem === 'WALL') ? 0.05 : 0.025; // geometry thickness/2
+            const halfT = (activeItem === 'WALL') ? 0.05 : 0.025; // thickness/2
             let px = pos.x + 0.5;
             let py = pos.y + 0.5;
             let pz = pos.z + 0.5;
 
             if (Math.abs(n.x) > 0.5) {
-                px = hit.pos.x + (n.x > 0 ? 1 + halfT : -halfT); // flush to +X or -X face
-                this.previewMesh.rotation.y = Math.PI / 2;       // face ±X
+                px = hit.pos.x + (n.x > 0 ? 1 + halfT : -halfT);
+                this.previewMesh.rotation.y = Math.PI / 2;
             } else if (Math.abs(n.z) > 0.5) {
-                pz = hit.pos.z + (n.z > 0 ? 1 + halfT : -halfT); // flush to +Z or -Z face
-                this.previewMesh.rotation.y = 0;                 // face ±Z
+                pz = hit.pos.z + (n.z > 0 ? 1 + halfT : -halfT);
+                this.previewMesh.rotation.y = 0;
             } else if (Math.abs(n.y) > 0.5) {
-                // top/bottom face: center in XZ, sit on top or below
                 py = hit.pos.y + (n.y > 0 ? 1 + halfT : -halfT);
-                // rotate flat if horizontal preview
             }
 
             this.previewMesh.position.set(px, py, pz);
@@ -191,23 +188,37 @@ export class PlacementController {
     }
 
     _placeProp(world, activeItem, activeMaterial, activeScale) {
-        // Determine original key
+        // 1) Material — clone and make sure maps are valid for PBR
         const materialKey = Object.keys(this.allMaterials).find(k => this.allMaterials[k] === activeMaterial);
-
-        // Clone material for per-prop scaling (except glass)
         const mat = (activeItem === 'PANE') ? this.allMaterials.glass : activeMaterial.clone();
+
         if (activeItem !== 'PANE') {
-            const maps = ['map', 'normalMap', 'metalnessMap', 'aoMap', 'roughnessMap'];
-            maps.forEach(m => {
-                if (mat[m]) {
-                    mat[m] = mat[m].clone();
-                    mat[m].repeat.set(activeScale, activeScale);
-                    mat[m].needsUpdate = true;
-                }
-            });
+            const maps = ['map', 'normalMap', 'metalnessMap', 'aoMap', 'roughnessMap', 'displacementMap'];
+            for (const m of maps) {
+                const t = mat[m];
+                if (!t) continue;
+                const c = t.clone();
+                // enforce wrapping & scale
+                c.wrapS = c.wrapT = THREE.RepeatWrapping;
+                if (m === 'map') c.colorSpace = THREE.SRGBColorSpace; // ensure albedo stays sRGB on clone
+                c.repeat.set(activeScale, activeScale);
+                c.needsUpdate = true;
+                mat[m] = c;
+            }
+            mat.needsUpdate = true;
         }
 
-        const mesh = new THREE.Mesh(this.propGeometries[activeItem], mat);
+        // 2) Geometry — clone and ensure uv2 exists (needed for aoMap)
+        const baseGeo = this.propGeometries[activeItem];
+        const geo = baseGeo.clone();
+        const uv = geo.getAttribute('uv');
+        if (uv && !geo.getAttribute('uv2')) {
+            // clone UVs into uv2
+            geo.setAttribute('uv2', new THREE.BufferAttribute(uv.array.slice(0), 2));
+        }
+
+        // 3) Mesh
+        const mesh = new THREE.Mesh(geo, mat);
         mesh.position.copy(this.previewMesh.position);
         mesh.rotation.copy(this.previewMesh.rotation);
         mesh.castShadow = mesh.receiveShadow = true;
@@ -215,7 +226,7 @@ export class PlacementController {
         mesh.userData.materialKey = materialKey || 'metal';
         mesh.userData.scale = activeScale;
 
-        // Compute and store solid AABB (for collisions)
+        // 4) Solid – compute and store AABB for collisions
         this._refreshPropAABB(mesh);
 
         this.scene.add(mesh);
@@ -223,7 +234,6 @@ export class PlacementController {
     }
 
     _setVertical(obj, vertical) {
-        // vertical = rotation.x = 0; horizontal = lay flat (rotation.x = 90°)
         const keepY = obj.rotation.y;
         obj.rotation.set(vertical ? 0 : Math.PI / 2, keepY, 0);
         this._refreshPropAABB(obj);
