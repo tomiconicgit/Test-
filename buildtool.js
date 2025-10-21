@@ -1,8 +1,12 @@
-// buildtool.js — assets picker + ghost preview + place/remove/rotate
+// buildtool.js — assets picker + ghost preview + place/remove/rotate (Ramp)
+// Controls: R2 place, L2 remove, L1 stand up (vertical/horizontal), R1 yaw +45°
+// (Fly and other inputs handled by your controller/camera loop)
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js';
 import { createRampGeometry } from './structures/ramp.js';
 
 export function createBuildTool(THREE_NS, { scene, camera, input }) {
+  const EPS = 0.0005; // tiny lift to avoid z-fighting with terrain
+
   const tool = {
     active:false,
     assetsPanel:null,
@@ -12,15 +16,14 @@ export function createBuildTool(THREE_NS, { scene, camera, input }) {
     currentAsset:'RAMP',
     assetGeos:{},
     placed:[],
-    standUp:false,     // L1 toggles ground ↔ vertical
-    yawDeg:0,          // R1 adds +45° each tap
+    standUp:false,
+    yawDeg:0
   };
 
-  // ---- UI ---------------------------------------------------------------
+  // ---------- UI ----------
   function ensureUI() {
     if (tool.closeBtn) return;
 
-    // top-right close button (X)
     const close = document.createElement('button');
     close.id = 'build-close';
     close.textContent = '×';
@@ -28,7 +31,6 @@ export function createBuildTool(THREE_NS, { scene, camera, input }) {
     close.style.display = 'none';
     close.addEventListener('click', () => tool.disable());
 
-    // assets button (drawer)
     const assetsBtn = document.createElement('button');
     assetsBtn.id = 'build-assets';
     assetsBtn.innerHTML = `
@@ -38,13 +40,10 @@ export function createBuildTool(THREE_NS, { scene, camera, input }) {
     assetsBtn.title = 'Assets';
     assetsBtn.style.display = 'none';
 
-    // dropdown
     const panel = document.createElement('div');
     panel.id = 'build-panel';
     panel.style.display = 'none';
-    panel.innerHTML = `
-      <div class="entry" data-type="RAMP">Ramp</div>
-    `;
+    panel.innerHTML = `<div class="entry" data-type="RAMP">Ramp</div>`;
 
     document.body.append(close, assetsBtn, panel);
 
@@ -95,18 +94,17 @@ export function createBuildTool(THREE_NS, { scene, camera, input }) {
     ensureGhost();
   }
 
-  // ---- Ghost / Geometries ------------------------------------------------
+  // ---------- Geos / Ghost ----------
   function ensureGeos() {
-    if (Object.keys(tool.assetGeos).length) return;
-    tool.assetGeos.RAMP = createRampGeometry();
+    if (!tool.assetGeos.RAMP) tool.assetGeos.RAMP = createRampGeometry();
   }
 
   function ensureGhost() {
     ensureGeos();
     if (!tool.ghost) {
       const mat = new THREE.MeshStandardMaterial({
-        color: 0x7fb3ff, transparent:true, opacity:0.35, roughness:0.6, metalness:0.0,
-        depthWrite:false
+        color: 0x7fb3ff, transparent:true, opacity:0.35,
+        roughness:0.6, metalness:0.0, depthWrite:false, side:THREE.DoubleSide
       });
       tool.ghost = new THREE.Mesh(new THREE.BufferGeometry(), mat);
       tool.ghost.renderOrder = 999;
@@ -119,7 +117,7 @@ export function createBuildTool(THREE_NS, { scene, camera, input }) {
     tool.yawDeg = 0;
   }
 
-  // ---- Public API --------------------------------------------------------
+  // ---------- Public API ----------
   tool.enable = () => {
     tool.active = true;
     ensureUI();
@@ -139,31 +137,25 @@ export function createBuildTool(THREE_NS, { scene, camera, input }) {
   tool.update = (dt) => {
     if (!tool.active) return;
 
-    // orient controls
-    if (input.l1Pressed) tool.standUp = !tool.standUp;                 // horizontal ↔ vertical
-    if (input.r1Pressed) tool.yawDeg = (tool.yawDeg + 45) % 360;       // yaw +45°
+    // rotate / stand up
+    if (input.l1Pressed) tool.standUp = !tool.standUp;
+    if (input.r1Pressed) tool.yawDeg = (tool.yawDeg + 45) % 360;
 
-    // raycast to ground/scene for placement position
+    // raycast for placement target (ignore ghost)
     const rc = new THREE.Raycaster();
     rc.setFromCamera({x:0, y:0}, camera);
     const hits = rc.intersectObjects(scene.children, true);
-    const hit = hits.find(h => h.object !== tool.ghost); // ignore ghost self
+    const hit = hits.find(h => h.object !== tool.ghost);
     if (hit) {
       const gx = Math.round(hit.point.x);
       const gz = Math.round(hit.point.z);
-      const gy = hit.point.y;
-      tool.ghost.position.set(gx, gy + 0.001, gz);
+      const gy = hit.point.y + EPS; // tiny lift to avoid z-fighting
+      tool.ghost.position.set(gx, gy, gz);
       tool.ghost.rotation.set(0, THREE.MathUtils.degToRad(tool.yawDeg), 0);
-      if (tool.standUp) {
-        // stand up around X so it becomes wall-like
-        tool.ghost.rotation.x = Math.PI / 2;
-      }
+      if (tool.standUp) tool.ghost.rotation.x = Math.PI / 2;
       tool.ghost.visible = true;
 
-      // place
       if (input.r2Pressed) placeCurrent();
-
-      // remove (looked item)
       if (input.l2Pressed) tryRemoveAtRay(rc);
     } else {
       tool.ghost.visible = false;
@@ -172,7 +164,9 @@ export function createBuildTool(THREE_NS, { scene, camera, input }) {
 
   function makePlacedMesh() {
     const geo = tool.assetGeos[tool.currentAsset];
-    const mat = new THREE.MeshStandardMaterial({ color:0xcccccc, metalness:0.0, roughness:0.6 });
+    const mat = new THREE.MeshStandardMaterial({
+      color: 0xcccccc, metalness: 0.0, roughness: 0.6, side: THREE.DoubleSide
+    });
     const m = new THREE.Mesh(geo.clone(), mat);
     m.castShadow = m.receiveShadow = true;
     m.userData.isBuild = true;
@@ -181,7 +175,7 @@ export function createBuildTool(THREE_NS, { scene, camera, input }) {
 
   function placeCurrent() {
     const m = makePlacedMesh();
-    m.position.copy(tool.ghost.position);
+    m.position.copy(tool.ghost.position); // already snapped to integer grid
     m.rotation.copy(tool.ghost.rotation);
     scene.add(m);
     tool.placed.push(m);
@@ -192,8 +186,8 @@ export function createBuildTool(THREE_NS, { scene, camera, input }) {
     if (hits.length) {
       const obj = hits[0].object;
       tool.placed = tool.placed.filter(o => o !== obj);
-      if (obj.geometry) obj.geometry.dispose?.();
-      if (obj.material) obj.material.dispose?.();
+      obj.geometry?.dispose?.();
+      obj.material?.dispose?.();
       obj.removeFromParent();
     }
   }
