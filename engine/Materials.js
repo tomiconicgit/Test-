@@ -68,7 +68,7 @@ async function createPBRMaterial(name, options = {}) {
     aoMap: ao || null,
     roughnessMap: roughness || null,
     // --- MODIFICATION: Use options.metalness if provided, otherwise default to 1.0 ---
-    metalness: metallic ? 1.0 : (options.metalness !== undefined ? options.metalness : 1.0),
+    metalness: metallic ? 1.0 : (options.metalness !== undefined ? options.metalness : 0.3),
     // --- END MODIFICATION ---
     roughness: roughness ? 1.0 : (options.roughness !== undefined ? options.roughness : 0.5),
     envMapIntensity: 1.5,
