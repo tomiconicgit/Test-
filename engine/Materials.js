@@ -67,11 +67,11 @@ async function createPBRMaterial(name, options = {}) {
     metalnessMap: metallic || null,
     aoMap: ao || null,
     roughnessMap: roughness || null,
-    metalness: 1.0,
-    roughness: roughness ? 1.0 : (options.roughness !== undefined ? options.roughness : 0.5),
-    // --- MODIFICATION: Set envMapIntensity back to 1.5 ---
-    envMapIntensity: 1.5, // Was 2.0, back to 1.5
+    // --- MODIFICATION: Use options.metalness if provided, otherwise default to 1.0 ---
+    metalness: metallic ? 1.0 : (options.metalness !== undefined ? options.metalness : 1.0),
     // --- END MODIFICATION ---
+    roughness: roughness ? 1.0 : (options.roughness !== undefined ? options.roughness : 0.5),
+    envMapIntensity: 1.5,
   });
 }
 
@@ -86,7 +86,9 @@ export async function makeMaterials() {
       ] = await Promise.all([
         createPBRMaterial('metal', { roughness: 0.35 }),
         createPBRMaterial('alloywall', { roughness: 0.25, repeat: repeatVal }),
-        createPBRMaterial('cement', { roughness: 0.8, repeat: repeatVal, hasRoughnessMap: true }),
+        // --- MODIFICATION: Specify that cement is NOT metallic ---
+        createPBRMaterial('cement', { roughness: 0.8, repeat: repeatVal, hasRoughnessMap: true, metalness: 0.0 }),
+        // --- END MODIFICATION ---
         createPBRMaterial('grate', { aoFile: 'grate.ao.png', roughness: 0.1 }),
         createPBRMaterial('hexfloor', { roughness: 0.1, repeat: repeatVal, hasRoughnessMap: true }),
         createPBRMaterial('metalcubes', { roughness: 0.1, repeat: repeatVal }),
