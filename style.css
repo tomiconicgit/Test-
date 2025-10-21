@@ -1,9 +1,13 @@
 :root { --fg:#eaeaea; --bg:#0b0d10; --glass:rgba(255,255,255,.06); --accent:#4da3ff; }
 * { box-sizing:border-box; touch-action:none; }
 html,body { margin:0; height:100%; background:#000; color:var(--fg); font-family:Inter,system-ui,Arial; }
+
+/* The canvas (#c) is fixed to the full screen */
 #c { position:fixed; inset:0; display:block; }
 
+/* The HUD is fixed on top of the canvas */
 #hud { position:fixed; inset:0; pointer-events:none; }
+
 #crosshair {
   position:absolute;
   left:50%;
@@ -25,6 +29,7 @@ html,body { margin:0; height:100%; background:#000; color:var(--fg); font-family
   pointer-events:auto; 
 }
 
+/* This panel is positioned in the bottom-right corner of the HUD */
 #rightPanel {
   position:absolute; 
   right: 24px;
@@ -67,18 +72,18 @@ html,body { margin:0; height:100%; background:#000; color:var(--fg); font-family
   pointer-events: none;
 }
 
-/* --- MODIFICATION HERE --- */
+/* --- THIS IS THE FIX --- */
+/* This changes the button container to a 2x2 grid */
 #actionButtons { 
   display: grid; /* Changed from flex */
-  grid-template-columns: 1fr 1fr; /* Create a 2x2 grid */
-  gap: 8px; /* This now applies to rows and columns */
+  grid-template-columns: 1fr 1fr; /* 2 equal columns */
+  gap: 8px; 
 }
 
+/* This styles the buttons to be large and touch-friendly again */
 #actionButtons button {
-  /* Reverted to original, touch-friendly padding and font size */
-  padding: 20px 10px;
-  font-size: 16px;
-  /* Removed the flex properties */
+  padding: 20px 10px; /* Original large padding */
+  font-size: 16px;     /* Original large font */
   
   border-radius:16px;
   border:1px solid rgba(255,255,255,.2);
@@ -89,7 +94,7 @@ html,body { margin:0; height:100%; background:#000; color:var(--fg); font-family
   letter-spacing:.5px; 
   transition: background .2s;
 }
-/* --- END MODIFICATION --- */
+/* --- END OF FIX --- */
 
 #actionButtons button:active {
   background: rgba(40,42,45,.6);
@@ -97,8 +102,6 @@ html,body { margin:0; height:100%; background:#000; color:var(--fg); font-family
 
 #btnPlace { border-color:rgba(77,163,255,.35); }
 #btnRemove { border-color:rgba(255,100,100,.35); }
-
-/* Styles for the new buttons */
 #btnSave { border-color:rgba(100, 255, 100, .35); }
 #btnLoad { border-color:rgba(255, 180, 80, .35); }
 
