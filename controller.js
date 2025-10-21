@@ -1,49 +1,55 @@
-// controller.js — Backbone/iOS-safe polling + edges/holds for Build/Dig
+// controller.js — stick mappings locked to standard; no fallback cross-talk
 export function createController() {
   const state = {
     look: { dx:0, dy:0 },
     move: { x:0, y:0 },
 
-    // edge-triggered buttons:
-    bPressed:false, xPressed:false, yPressed:false, r2Pressed:false,
-    l2Pressed:false, l1Pressed:false, r1Pressed:false, aDouble:false,
+    // edge-triggered
+    bPressed:false, xPressed:false, yPressed:false,
+    l1Pressed:false, r1Pressed:false, l2Pressed:false, r2Pressed:false,
+    aDouble:false,
 
-    // holds:
+    // holds
     aHold:false, xHold:false,
 
     // internals
-    _prev:{ b:false, x:false, y:false, r2:false, l2:false, l1:false, r1:false, a:false },
+    _prev:{ a:false, b:false, x:false, y:false, l1:false, r1:false, l2:false, r2:false },
     _lastATime:0
   };
 
-  function dz(v, d=0.10){ return Math.abs(v)>d ? v : 0; }
-  function readStick(a, ix, iy){ return { x: dz(a[ix] ?? 0), y: dz(a[iy] ?? 0) }; }
+  const DEADZONE = 0.10;
+  const SENS_PX = 250; // pixels/sec for look
+
+  function dz(v){ return Math.abs(v) > DEADZONE ? v : 0; }
 
   state.update = (dt) => {
     state.look.dx = 0; state.look.dy = 0;
     state.move.x = 0;  state.move.y = 0;
 
-    state.bPressed = state.xPressed = state.yPressed = state.r2Pressed =
-    state.l2Pressed = state.l1Pressed = state.r1Pressed = state.aDouble = false;
+    state.bPressed = state.xPressed = state.yPressed =
+    state.l1Pressed = state.r1Pressed = state.l2Pressed = state.r2Pressed =
+    state.aDouble = false;
 
     const pads = (navigator.getGamepads && navigator.getGamepads()) || [];
     const gp = pads.find(p => p && p.connected) || null;
     if (!gp) { state.aHold = state.xHold = false; return; }
 
-    const a = gp.axes || [];
-    // sticks: try 0/1 and 2/3 first; fallback to 4/5 or 1/2 if needed
-    let L = readStick(a, 0, 1);
-    let R = readStick(a, 2, 3);
-    if (Math.hypot(R.x,R.y)===0 && a.length>=6) R = readStick(a, 4, 5);
-    if (Math.hypot(L.x,L.y)===0 && a.length>=3) L = readStick(a, 1, 2);
+    // STRICT standard mapping
+    const ax = gp.axes || [];
+    const LX = dz(ax[0] ?? 0);
+    const LY = dz(ax[1] ?? 0);
+    const RX = dz(ax[2] ?? 0);
+    const RY = dz(ax[3] ?? 0);
 
-    state.move.x = -L.x; // strafe invert to match camera basis
-    state.move.y =  L.y;
+    // Left stick = movement only
+    state.move.x = -LX;   // strafe (invert to match camera basis)
+    state.move.y =  LY;   // forward/back
 
-    state.look.dx += R.x * 250 * dt;
-    state.look.dy += R.y * 250 * dt;
+    // Right stick = look only
+    state.look.dx += RX * SENS_PX * dt;
+    state.look.dy += RY * SENS_PX * dt;
 
-    // buttons (standard mapping): A(0), B(1), X(2), Y(3), L1(4), R1(5), L2(6), R2(7)
+    // Buttons (standard)
     const aNow  = !!(gp.buttons?.[0]?.pressed);
     const bNow  = !!(gp.buttons?.[1]?.pressed);
     const xNow  = !!(gp.buttons?.[2]?.pressed);
@@ -53,7 +59,7 @@ export function createController() {
     const l2Now = !!(gp.buttons?.[6]?.pressed);
     const r2Now = !!(gp.buttons?.[7]?.pressed);
 
-    // edges
+    // Edges
     state.bPressed  = bNow  && !state._prev.b;
     state.xPressed  = xNow  && !state._prev.x;
     state.yPressed  = yNow  && !state._prev.y;
@@ -62,7 +68,7 @@ export function createController() {
     state.l2Pressed = l2Now && !state._prev.l2;
     state.r2Pressed = r2Now && !state._prev.r2;
 
-    // double-tap A (<=300ms)
+    // Double-tap A (≤300 ms)
     state.aDouble = false;
     if (aNow && !state._prev.a) {
       const now = performance.now();
@@ -70,7 +76,7 @@ export function createController() {
       state._lastATime = now;
     }
 
-    // holds
+    // Holds
     state.aHold = aNow;
     state.xHold = xNow;
 
