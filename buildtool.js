@@ -2,7 +2,7 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js';
 import { createRampGeometry } from './structures/ramp.js';
 
-export function createBuildTool(THREE_NS, { scene, camera, input }) {
+export function createBuildTool(THREE_NS, { scene, camera, input, terrain, terrainHeightAt }) {
   const EPS = 0.0005;
 
   const tool = {
@@ -113,8 +113,8 @@ export function createBuildTool(THREE_NS, { scene, camera, input }) {
     hud.querySelector('#bt-remove').addEventListener('click', () => {
       const rc = new THREE.Raycaster(); rc.setFromCamera({x:0,y:0}, camera); tryRemoveAtRay(rc);
     });
-    hud.querySelector('#bt-flip').addEventListener('click', () => { tool.standUp = !tool.standUp; });
-    hud.querySelector('#bt-rot').addEventListener('click', () => { tool.yawDeg = (tool.yawDeg + 45) % 360; });
+    hud.querySelector('#bt-flip').addEventListener('click', () => { tool.standUp = !tool.standUp; syncGhostRotation(); });
+    hud.querySelector('#bt-rot').addEventListener('click', () => { tool.yawDeg = (tool.yawDeg + 45) % 360; syncGhostRotation(); });
 
     tool.closeBtn = close;
     tool.assetsBtn = assetsBtn;
@@ -154,6 +154,12 @@ export function createBuildTool(THREE_NS, { scene, camera, input }) {
     tool.yawDeg = 0;
   }
 
+  function syncGhostRotation() {
+    if (!tool.ghost) return;
+    tool.ghost.rotation.set(0, THREE.MathUtils.degToRad(tool.yawDeg), 0);
+    if (tool.standUp) tool.ghost.rotation.x = Math.PI / 2;
+  }
+
   // ---------- Public API ----------
   tool.enable = () => {
     tool.active = true;
@@ -177,27 +183,37 @@ export function createBuildTool(THREE_NS, { scene, camera, input }) {
     if (!tool.active) return;
 
     // controller buttons still work
-    if (input.l1Pressed) tool.standUp = !tool.standUp;
-    if (input.r1Pressed) tool.yawDeg = (tool.yawDeg + 45) % 360;
+    if (input.l1Pressed) { tool.standUp = !tool.standUp; syncGhostRotation(); }
+    if (input.r1Pressed) { tool.yawDeg = (tool.yawDeg + 45) % 360; syncGhostRotation(); }
 
-    // raycast for placement target
+    // ---- Placement ray: **terrain only** so snap height is stable
     const rc = new THREE.Raycaster();
     rc.setFromCamera({x:0, y:0}, camera);
-    const hits = rc.intersectObjects(scene.children, true);
-    const hit = hits.find(h => h.object !== tool.ghost);
+    const hit = terrain ? rc.intersectObject(terrain, true)[0] : null;
+
     if (hit) {
+      // Snap to integer tile centers
       const gx = Math.round(hit.point.x);
       const gz = Math.round(hit.point.z);
-      const gy = hit.point.y + EPS;
+      // Base height from terrain at snapped center (not from hit on props)
+      const gy = typeof terrainHeightAt === 'function'
+        ? terrainHeightAt(gx, gz) + EPS
+        : hit.point.y + EPS;
+
       tool.ghost.position.set(gx, gy, gz);
-      tool.ghost.rotation.set(0, THREE.MathUtils.degToRad(tool.yawDeg), 0);
-      if (tool.standUp) tool.ghost.rotation.x = Math.PI / 2;
       tool.ghost.visible = true;
+      syncGhostRotation();
 
       if (input.r2Pressed) placeCurrent();
-      if (input.l2Pressed) tryRemoveAtRay(rc);
     } else {
       tool.ghost.visible = false;
+    }
+
+    // Removal ray: target placed meshes only
+    if (input.l2Pressed) {
+      const r2 = new THREE.Raycaster();
+      r2.setFromCamera({x:0,y:0}, camera);
+      tryRemoveAtRay(r2);
     }
   };
 
