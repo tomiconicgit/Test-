@@ -2,81 +2,26 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Builder PWA</title>
+  <title>FPVMC</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="theme-color" content="#0b0d10" />
   <link rel="manifest" href="./manifest.json">
-  <link rel="stylesheet" href="./style.css?v=1.0.7" />
+  <style>
+    html,body{margin:0;height:100%;background:#0b0d10;overflow:hidden}
+    #c{position:fixed;inset:0;display:block}
+  </style>
 </head>
 <body>
   <canvas id="c"></canvas>
-  <input type="file" id="loadFile" accept=".json" style="display: none;" />
-
-  <div id="hud">
-    <div id="joystick"></div>
-
-    <div id="rightPanel">
-      <div class="select-wrapper">
-        <select id="texturePicker">
-          <option value="metal">Metal</option>
-          <option value="alloywall">Alloy Wall</option>
-          <option value="cement">Cement</option>
-          <option value="grate">Grate</option>
-          <option value="hexfloor">Hex Floor</option>
-          <option value="metalcubes">Metal Cubes</option>
-          <option value="oiltubes">Oil Tubes</option>
-          <option value="oldmetal">Old Metal</option>
-          <option value="polishedtile">Polished Tile</option>
-          <option value="rustymetal">Rusty Metal</option>
-          <option value="spacepanels">Space Panels</option>
-          <option value="techwall">Tech Wall</option>
-          <option value="vent">Vent</option>
-          <option value="ventslating">Vent Slating</option>
-        </select>
-      </div>
-
-      <div class="select-wrapper">
-        <select id="itemPicker">
-          <option value="VOXEL">Voxel</option>
-          <option value="BLOCK">Block Prop</option>
-          <option value="BLOCK_ROUNDED">Block (Rounded Sides)</option>
-          <option value="WALL">Wall</option>
-          <option value="PANE">Glass Pane</option>
-          <option value="FLOOR">Floor</option>
-          <option value="SLOPE">Slope</option>
-          <option value="CYLINDER">Cylinder</option>
-          <option value="PIPE_STRAIGHT">Pipe Straight</option>
-          <option value="PIPE_ELBOW">Pipe Elbow</option>
-        </select>
-      </div>
-
-      <div id="scaleButtons">
-        <button class="scaleBtn active" data-scale="1">1x1</button>
-        <button class="scaleBtn" data-scale="0.5">2x2</button>
-        <button class="scaleBtn" data-scale="0.25">4x4</button>
-      </div>
-
-      <div id="actionButtons">
-        <button id="btnPlace">Place</button>
-        <button id="btnRemove">Remove</button>
-        <button id="btnSave">Save</button>
-        <button id="btnLoad">Load</button>
-      </div>
-    </div>
-
-    <div id="crosshair"></div>
-  </div>
 
   <!-- Loader boots and then imports main.js -->
   <script src="./loader.js"></script>
 
   <script>
+    // Zero-caching SW (pass-through only)
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js')
-          .then(reg => console.log('SW registered:', reg))
-          .catch(err => console.log('SW registration failed:', err));
+        navigator.serviceWorker.register('./sw.js').catch(()=>{});
       });
     }
   </script>
