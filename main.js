@@ -18,21 +18,23 @@ const canvas = document.getElementById('c');
     const scene = new THREE.Scene();
 
     window.__LOADER?.setStatus?.('Lighting & env…');
-    const { pmremEnv } = setupLightingAndEnv(THREE, renderer, scene);
+    setupLightingAndEnv(THREE, renderer, scene);
 
     window.__LOADER?.setStatus?.('Camera & controls…');
-    const { camera, yaw, pitch } = createFPSCamera(THREE);
+    const { camera, yaw /*, pitch*/ } = createFPSCamera(THREE);
     const input = createController();
 
+    // IMPORTANT: add the yaw chain to the scene so camera transforms update
+    scene.add(yaw);
+
     window.__LOADER?.setStatus?.('Sky…');
-    const sky = createSky(THREE);
-    scene.add(sky);
+    scene.add(createSky(THREE));
 
     window.__LOADER?.setStatus?.('Terrain…');
     const terrain = createTerrain(THREE);
     scene.add(terrain);
 
-    // place camera above terrain center
+    // start position over the terrain
     yaw.position.set(25, 2, 25);
 
     // main loop
@@ -42,14 +44,14 @@ const canvas = document.getElementById('c');
       const now = performance.now(), dt = Math.min((now - last)/1000, 0.05); last = now;
 
       input.update(dt);
+
       // look
-      const sens = 0.0022; // controller look speed
+      const sens = 0.0022; // tweak if still slow/fast
+      yaw.children[0].rotation.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, yaw.children[0].rotation.x - input.look.dy * sens));
       yaw.rotation.y -= input.look.dx * sens;
-      pitch.rotation.x -= input.look.dy * sens;
-      pitch.rotation.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, pitch.rotation.x));
       input.resetLook();
 
-      // move (X/Z on ground plane)
+      // move
       const speed = 5.0;
       const forward = -input.move.y;
       const strafe  =  input.move.x;
@@ -59,13 +61,15 @@ const canvas = document.getElementById('c');
       yaw.position.addScaledVector(dir, forward * speed * dt);
       yaw.position.addScaledVector(right, strafe  * speed * dt);
 
-      // keep above terrain (simple raycast)
-      {
-        const ray = new THREE.Raycaster(new THREE.Vector3(yaw.position.x, 20, yaw.position.z), new THREE.Vector3(0,-1,0), 0, 40);
-        const hit = ray.intersectObject(terrain, true)[0];
-        const groundY = hit ? hit.point.y : 0;
-        yaw.position.y += ((groundY + 1.6) - yaw.position.y) * 0.3;
-      }
+      // keep above terrain
+      const ray = new THREE.Raycaster(
+        new THREE.Vector3(yaw.position.x, 50, yaw.position.z),
+        new THREE.Vector3(0,-1,0),
+        0, 100
+      );
+      const hit = ray.intersectObject(terrain, true)[0];
+      const groundY = hit ? hit.point.y : 0;
+      yaw.position.y += ((groundY + 1.6) - yaw.position.y) * 0.35;
 
       renderer.render(scene, camera);
 
@@ -76,7 +80,6 @@ const canvas = document.getElementById('c');
       }
     })();
 
-    // resize
     addEventListener('resize', () => {
       renderer.setSize(innerWidth, innerHeight);
       camera.aspect = innerWidth/innerHeight;
@@ -85,6 +88,6 @@ const canvas = document.getElementById('c');
 
   } catch (e) {
     console.error('App failed:', e);
-    throw e; // surfaces to loader
+    throw e;
   }
 })();
