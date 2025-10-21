@@ -47,13 +47,14 @@
           <option value="PIPE_STRAIGHT">Pipe Straight</option>
           <option value="PIPE_ELBOW">Pipe Elbow</option>
         </select>
-        </div>
-      
+      </div>
+
       <div id="scaleButtons">
         <button class="scaleBtn active" data-scale="1">1x1</button>
         <button class="scaleBtn" data-scale="0.5">2x2</button>
         <button class="scaleBtn" data-scale="0.25">4x4</button>
       </div>
+
       <div id="actionButtons">
         <button id="btnPlace">Place</button>
         <button id="btnRemove">Remove</button>
@@ -65,7 +66,9 @@
     <div id="crosshair"></div>
   </div>
 
-  <script type="module" src="./main.js"></script>
+  <!-- IMPORTANT: loader boots the app and imports main.js -->
+  <script src="./loader.js"></script>
+
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
