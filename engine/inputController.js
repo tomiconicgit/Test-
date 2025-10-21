@@ -42,7 +42,7 @@ export class InputController {
             this.look.dx += e.clientX - this._lastLook.x;
             this.look.dy += e.clientY - this._lastLook.y;
             this._lastLook.x = e.clientX;
-            this._lastLook.y = e.clientY;
+            this.look.dy = e.clientY;
         });
         window.addEventListener('pointerup', e => { if (e.pointerId === this._lookId) this._lookId = null; });
     }
@@ -59,7 +59,10 @@ export class InputController {
             // Movement
             const ax0 = this.gamepad.axes[0]; // Strafe
             const ax1 = this.gamepad.axes[1]; // Forward
-            this.movement.x = Math.abs(ax0) > deadzone ? ax0 : 0;
+            // --- MODIFICATION HERE ---
+            // Invert the X-axis to fix controller issue
+            this.movement.x = Math.abs(ax0) > deadzone ? -ax0 : 0; 
+            // --- END MODIFICATION ---
             this.movement.y = Math.abs(ax1) > deadzone ? ax1 : 0;
             
             // Look
