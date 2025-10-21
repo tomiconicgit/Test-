@@ -1,92 +1,156 @@
-// main.js — add Build Tool wiring (rest of your file stays the same)
+// main.js
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js';
-import { createRenderer } from './renderer.js';
+
 import { createFPSCamera } from './camera.js';
 import { createController } from './controller.js';
-import { createTerrain } from './terrain.js';
-import { createSky } from './sky.js';
-import { setupLightingAndEnv } from './lighting.js';
-import { createMenu } from './menu.js';
-import { createDigTool } from './digtool.js';
-import { createBuildTool } from './buildtool.js'; // <-- NEW
+import { createTouchControls } from './touchcontrols.js';
+import { createBuildTool } from './buildtool.js';
 
+// These are expected from your minimal modules:
+import { createTerrain } from './terrain.js';      // returns { mesh, getHeightAt(x,z) }
+import { createSky } from './sky.js';              // returns a sky mesh or group (optional)
+import { setupLighting } from './lighting.js';     // returns { hemi, sun, ambient }
+
+// ---------- Renderer / Scene ----------
 const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
 
-(async function start() {
-  const renderer = createRenderer(THREE, canvas);
-  const scene = new THREE.Scene();
-  setupLightingAndEnv(THREE, renderer, scene);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x101215);
+scene.fog = new THREE.Fog(0x101215, 60, 220);
 
-  const { camera, yaw, pitch } = createFPSCamera(THREE);
-  const input = createController();
-  scene.add(yaw);
+// ---------- Camera rig (FOV 60) ----------
+const { camera, yaw, pitch } = createFPSCamera(THREE);
+scene.add(yaw);
 
-  scene.add(createSky(THREE));
-  const terrain = createTerrain(THREE);
-  scene.add(terrain);
+// ---------- World ----------
+const terrain = createTerrain(THREE, { size: 50, cell: 1, color: 0x8b8f97, uneven: 0.02 });
+scene.add(terrain.mesh);
 
-  // spawn center
-  yaw.position.set(0, 2, 0);
+// Optional sky
+const sky = createSky?.(THREE);
+if (sky) scene.add(sky);
 
-  const digTool = createDigTool(THREE, { scene, camera, terrain, input });
-  const buildTool = createBuildTool(THREE, { scene, camera, input }); // <-- NEW
+// PBR lighting
+const lights = setupLighting(THREE, scene, renderer);
 
-  createMenu({
-    onDigTool: () => digTool.enable(),
-    onBuildTool: () => buildTool.enable() // <-- NEW
-  });
+// Neutral envMap so metals look right
+{
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const envScene = new THREE.Scene();
+  const box = new THREE.Mesh(new THREE.BoxGeometry(10, 10, 10), new THREE.MeshBasicMaterial({ color: 0x888c92, side: THREE.BackSide }));
+  envScene.add(box);
+  scene.environment = pmrem.fromScene(envScene).texture;
+  pmrem.dispose();
+}
 
-  let first = true, last = performance.now();
-  let isFlying = false;
+// ---------- Controls ----------
+const pad = createController();        // gamepad
+const touch = createTouchControls();   // on-screen joystick + drag look
 
-  (function tick(){
-    requestAnimationFrame(tick);
-    const now = performance.now(), dt = Math.min((now - last)/1000, 0.05); last = now;
+// Movement settings
+const EYE = 1.6;
+const SPEED_WALK = 5.0;
+const SPEED_FLY  = 7.5;
 
-    input.update(dt);
+// Spawn at terrain center (0,0), height from terrain
+function terrainHeightAt(x, z) {
+  return (terrain.getHeightAt?.(x, z) ?? 0);
+}
+yaw.position.set(0, terrainHeightAt(0, 0) + EYE, 0);
 
-    // Toggle fly on A double tap
-    if (input.aDouble) isFlying = !isFlying;
+// ---------- Build Tool ----------
+const buildTool = createBuildTool(THREE, { scene, camera, input: pad });
 
-    // look
-    const sens = 0.0022;
-    yaw.rotation.y -= input.look.dx * sens;
-    pitch.rotation.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, pitch.rotation.x - input.look.dy * sens));
-    input.resetLook();
+// (Optional) hook to your menu button to toggle build tool
+document.addEventListener('toggle-build-tool', () => {
+  if (buildTool.active) buildTool.disable();
+  else buildTool.enable();
+});
 
-    // move
-    const speed = 5.0;
-    const forward = -input.move.y;
-    const strafe  =  input.move.x;
+// ---------- Player Update ----------
+let isFlying = false;
+let lastT = performance.now();
+let firstFrameSignaled = false;
 
-    const dir = new THREE.Vector3(0,0,-1).applyQuaternion(yaw.quaternion).setY(0).normalize();
-    const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0,1,0), dir).normalize();
-    yaw.position.addScaledVector(dir, forward * speed * dt);
-    yaw.position.addScaledVector(right, strafe  * speed * dt);
+function tick() {
+  requestAnimationFrame(tick);
 
-    // vertical movement in fly
-    if (isFlying) {
-      if (input.aHold) yaw.position.y += speed * dt;
-      if (input.xHold) yaw.position.y -= speed * dt;
-    } else {
-      // stick to terrain
-      const rc = new THREE.Raycaster(new THREE.Vector3(yaw.position.x, 50, yaw.position.z), new THREE.Vector3(0,-1,0), 0, 100);
-      const hit = rc.intersectObject(terrain, true)[0];
-      const groundY = hit ? hit.point.y : 0;
-      yaw.position.y += ((groundY + 1.6) - yaw.position.y) * 0.35;
-    }
+  const now = performance.now();
+  const dt = Math.min((now - lastT) / 1000, 0.05);
+  lastT = now;
 
-    if (digTool.active)   digTool.update(dt);
-    if (buildTool.active) buildTool.update(dt);
+  // Update gamepad
+  pad.update(dt);
 
-    renderer.render(scene, camera);
+  // Toggle fly on A double
+  if (pad.aDouble) isFlying = !isFlying;
 
-    if (first) { first = false; window.__LOADER?.appReady?.(); window.dispatchEvent(new CustomEvent('world:first-frame')); }
-  })();
+  // ---- Look (blend pad + touch) ----
+  const lookDX = pad.look.dx + touch.look.dx * 0.5; // touch scaled so it feels similar
+  const lookDY = pad.look.dy + touch.look.dy * 0.5;
 
-  addEventListener('resize', () => {
-    renderer.setSize(innerWidth, innerHeight);
-    camera.aspect = innerWidth/innerHeight;
-    camera.updateProjectionMatrix();
-  });
-})();
+  const SENS = 0.0022; // yaw/pitch radians per “pixel”
+  yaw.rotation.y -= lookDX * SENS;
+  pitch.rotation.x -= lookDY * SENS;
+  pitch.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, pitch.rotation.x));
+
+  // Reset look deltas
+  pad.resetLook();
+  touch.resetLook();
+
+  // ---- Movement (prefer pad if active, else touch joystick) ----
+  const usePad = Math.abs(pad.move.x) + Math.abs(pad.move.y) > 0.02 ||
+                 pad.aHold || pad.xHold || pad.l1Pressed || pad.r1Pressed || pad.l2Pressed || pad.r2Pressed;
+
+  const mvX = usePad ? pad.move.x : touch.move.x; // strafe
+  const mvY = usePad ? pad.move.y : touch.move.y; // forward (+ = forward in our controller)
+
+  // Movement vectors in world space
+  const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(yaw.quaternion);
+  const right   = new THREE.Vector3(1, 0,  0).applyQuaternion(yaw.quaternion);
+  if (!isFlying) { forward.y = 0; right.y = 0; forward.normalize(); right.normalize(); }
+
+  const speed = isFlying ? SPEED_FLY : SPEED_WALK;
+  yaw.position.addScaledVector(forward, mvY * speed * dt);
+  yaw.position.addScaledVector(right,   mvX * speed * dt);
+
+  // Vertical while flying (A hold up, X hold down)
+  if (isFlying) {
+    if (pad.aHold) yaw.position.y += speed * dt;
+    if (pad.xHold) yaw.position.y -= speed * dt;
+  } else {
+    // Snap to terrain height
+    const yGround = terrainHeightAt(yaw.position.x, yaw.position.z) + EYE;
+    yaw.position.y += (yGround - yaw.position.y) * 0.25; // gentle follow
+  }
+
+  // ---- Tools ----
+  buildTool.update(dt);
+
+  // ---- Render ----
+  renderer.render(scene, camera);
+
+  // Let the loader know we rendered once
+  if (!firstFrameSignaled) {
+    firstFrameSignaled = true;
+    window.__LOADER?.appReady?.();
+    window.dispatchEvent(new CustomEvent('world:first-frame'));
+  }
+}
+
+tick();
+
+// ---------- Resize ----------
+window.addEventListener('resize', () => {
+  renderer.setSize(innerWidth, innerHeight);
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+});
