@@ -14,6 +14,10 @@ import { createMenu } from './menu.js';
 import { createDigTool } from './digtool.js';
 import { createBuildTool } from './buildtool.js';
 
+// 🔽 ensure the truss frame module is fetched/evaluated so there’s no 404
+// (If your buildtool imports it itself, this still guarantees the file loads.)
+import './structures/trussframe.js';
+
 // ---------- Renderer / Scene ----------
 const canvas = document.getElementById('c');
 const renderer = createRenderer(THREE, canvas);
@@ -56,7 +60,6 @@ const RC_DOWN = new THREE.Raycaster();
 function sampleTerrainY(x, z) {
   if (!terrainMesh || !terrainMesh.isObject3D) return 0;
   RC_DOWN.set(new THREE.Vector3(x, 200, z), new THREE.Vector3(0, -1, 0));
-  // No recursion needed; terrainMesh is a Mesh
   const hit = RC_DOWN.intersectObject(terrainMesh, /*recursive=*/false)[0];
   return hit ? hit.point.y : 0;
 }
