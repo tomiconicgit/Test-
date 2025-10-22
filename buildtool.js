@@ -1,8 +1,8 @@
 // buildtool.js — Truss Frame placement + texture picker + bottom-right HUD
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js';
-import { createTrussBay } from './assets/structures/trussframe.js';
+import { createTrussBay } from './structures/trussframe.js'; // ← fixed path
 
-/* --- texture library + material loader (same as before) ------------------ */
+/* --- texture library + material loader ------------------ */
 const TEX = {
   alloywall:   files('alloywall',   { ao:true,  height:true }),
   cement:      files('cement',      { roughness:true, height:true }),
