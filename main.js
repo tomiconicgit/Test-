@@ -1,25 +1,24 @@
-// main.js — FPVMC bootstrap
-import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js';
+// main.js — FPVMC bootstrap (clean, ASCII-only)
+import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.168.0/build/three.module.js";
 
-import { createRenderer } from './renderer.js';
-import { createFPSCamera } from './camera.js';
-import { setupLighting } from './lighting.js';
-import { createSky } from './sky.js';
-import { createTerrain } from './terrain.js';
+import { createRenderer } from "./renderer.js";
+import { createFPSCamera } from "./camera.js";
+import { setupLighting } from "./lighting.js";
+import { createSky } from "./sky.js";
+import { createTerrain } from "./terrain.js";
 
-import { createController } from './controller.js';
-import { createTouchControls } from './touchcontrols.js';
+import { createController } from "./controller.js";
+import { createTouchControls } from "./touchcontrols.js";
 
-import { createMenu } from './menu.js';
-import { createDigTool } from './digtool.js';
-import { createBuildTool } from './buildtool.js';
+import { createMenu } from "./menu.js";
+import { createDigTool } from "./digtool.js";
+import { createBuildTool } from "./buildtool.js";
 
-// 🔽 ensure the truss frame module is fetched/evaluated so there’s no 404
-// (If your buildtool imports it itself, this still guarantees the file loads.)
-import './structures/trussframe.js';
+// Warm the truss module (optional safety; buildtool imports it too)
+import "./structures/trussframe.js";
 
 // ---------- Renderer / Scene ----------
-const canvas = document.getElementById('c');
+const canvas = document.getElementById("c");
 const renderer = createRenderer(THREE, canvas);
 
 const scene = new THREE.Scene();
@@ -31,24 +30,26 @@ const { camera, yaw, pitch } = createFPSCamera(THREE);
 scene.add(yaw);
 
 // ---------- World ----------
-const terrainMesh = createTerrain(THREE);   // ALWAYS a Mesh
+const terrainMesh = createTerrain(THREE);   // always a Mesh
 scene.add(terrainMesh);
 
 // Optional sky
-const sky = createSky?.(THREE);
+const sky = typeof createSky === "function" ? createSky(THREE) : null;
 if (sky) scene.add(sky);
 
 // PBR lights
 setupLighting(THREE, scene, renderer);
 
-// Neutral envMap for nicer metals
+// Neutral envMap for nicer metals (simple PMREM cube)
 {
   const pmrem = new THREE.PMREMGenerator(renderer);
   const envScene = new THREE.Scene();
-  envScene.add(new THREE.Mesh(
-    new THREE.BoxGeometry(10, 10, 10),
-    new THREE.MeshBasicMaterial({ color: 0x888c92, side: THREE.BackSide })
-  ));
+  envScene.add(
+    new THREE.Mesh(
+      new THREE.BoxGeometry(10, 10, 10),
+      new THREE.MeshBasicMaterial({ color: 0x888c92, side: THREE.BackSide })
+    )
+  );
   scene.environment = pmrem.fromScene(envScene).texture;
   pmrem.dispose();
 }
@@ -56,11 +57,11 @@ setupLighting(THREE, scene, renderer);
 // ---------- Helpers ----------
 const RC_DOWN = new THREE.Raycaster();
 
-/** Safe terrain height sampling; returns 0 if mesh is missing */
+/** Sample terrain height at x,z. Safe: returns 0 if no hit. */
 function sampleTerrainY(x, z) {
   if (!terrainMesh || !terrainMesh.isObject3D) return 0;
   RC_DOWN.set(new THREE.Vector3(x, 200, z), new THREE.Vector3(0, -1, 0));
-  const hit = RC_DOWN.intersectObject(terrainMesh, /*recursive=*/false)[0];
+  const hit = RC_DOWN.intersectObject(terrainMesh, false)[0];
   return hit ? hit.point.y : 0;
 }
 
@@ -78,11 +79,16 @@ const SPEED_FLY  = 7.5;
 
 // ---------- Tools & Menu ----------
 const digTool = createDigTool(THREE, {
-  scene, camera, terrain: terrainMesh, input: pad
+  scene,
+  camera,
+  terrain: terrainMesh,
+  input: pad
 });
 
 const buildTool = createBuildTool(THREE, {
-  scene, camera, input: pad,
+  scene,
+  camera,
+  input: pad,
   terrain: terrainMesh,
   terrainHeightAt: (x, z) => sampleTerrainY(x, z)
 });
@@ -166,14 +172,14 @@ function tick() {
   if (!firstFrameSignaled) {
     firstFrameSignaled = true;
     window.__LOADER?.appReady?.();
-    window.dispatchEvent(new CustomEvent('world:first-frame'));
+    window.dispatchEvent(new CustomEvent("world:first-frame"));
   }
 }
 
 tick();
 
 // ---------- Resize ----------
-window.addEventListener('resize', () => {
+window.addEventListener("resize", () => {
   renderer.setSize(innerWidth, innerHeight);
   camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
